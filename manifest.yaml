@@ -1,0 +1,6 @@
+---
+applications:
+  - name: fabric-service-broker
+    command: fabric-broker
+    env:
+      GO15VENDOREXPERIMENT: 0
