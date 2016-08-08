@@ -19,6 +19,15 @@
 			"ImportPath": "github.com/op/go-logging",
 			"Comment": "v1-7-g970db52",
 			"Rev": "970db520ece77730c7e4724c61121037378659d9"
+		},
+		{
+			"ImportPath": "gopkg.in/go-playground/assert.v1",
+			"Comment": "v1.2.1",
+			"Rev": "4f4dfbc7d1c48336cf93399deae81aa9067e88af"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "49c95bdc21843256fb6c4e0d370a05f24a0bf213"
 		}
 	]
 }
