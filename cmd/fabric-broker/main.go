@@ -31,6 +31,30 @@ var boshDirectorUrl = flag.String(
 	"Url for BOSH director in format scheme://username:password@ip:port",
 )
 
+var boshStemcellName = flag.String(
+	"boshStemcellName",
+	os.Getenv("BOSH_STEMCELL"),
+	"Url for BOSH director in format scheme://username:password@ip:port",
+)
+
+var boshDirectorUuid = flag.String(
+	"boshDirectorUuid",
+	os.Getenv("BOSH_UUID"),
+	"BOSH director UUID",
+)
+
+var boshVmType = flag.String(
+	"boshVmType",
+	os.Getenv("BOSH_VM_TYPE"),
+	"Vm type defined in cloud config that should be used for peer job",
+)
+
+var boshNetworks = flag.String(
+	"boshNetworks",
+	os.Getenv("BOSH_NETWORK_NAMES"),
+	"Comma separated list of network names configured in cloud config",
+)
+
 func main() {
 	flag.Parse()
 	log.Debug("Starting fabric service broker")
@@ -46,7 +70,7 @@ func main() {
 		log.Error("Environment not setup for bosh director use", err)
 		os.Exit(2)
 	}
-	slHandler := handlers.NewServiceLlifecycleHandler()
+	slHandler := handlers.NewServiceLifecycleHandler()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Provision).Methods("PUT")
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Deprovision).Methods("DELETE")
@@ -64,9 +88,9 @@ func main() {
 func getBoshDetails() *schema.BoshDetails {
 	log.Info("Getting Bosh details from environment")
 	return schema.NewBoshDetails(
-		os.Getenv("BOSH_STEMCELL"),
-		os.Getenv("BOSH_UUID"),
-		os.Getenv("BOSH_VM_TYPE"),
-		os.Getenv("BOSH_NETWORK_NAMES"),
+		*boshStemcellName,
+		*boshDirectorUuid,
+		*boshVmType,
+		*boshNetworks,
 	)
 }

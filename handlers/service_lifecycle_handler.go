@@ -26,7 +26,7 @@ var deprovisionResponse = `
 type slHandler struct {
 }
 
-func NewServiceLlifecycleHandler() ServiceLifecycleHandler {
+func NewServiceLifecycleHandler() ServiceLifecycleHandler {
 	return &slHandler{}
 }
 

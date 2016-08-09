@@ -22,8 +22,10 @@ func (b *BoshDetails) Validate() error {
 	if b.Vmtype == "" {
 		return errors.New("Vmtype cannot be empty")
 	}
-	if len(b.NetworkNames) == 0 {
-		return errors.New("NetworkNames cannot be empty")
+	for _, networkName := range b.NetworkNames {
+		if networkName == "" {
+			return errors.New("Invalid network name in the list")
+		}
 	}
 	return nil
 }

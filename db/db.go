@@ -15,7 +15,7 @@ type ServiceInstance struct {
 	DeprovisionTaskId   uint
 }
 
-func (s *ServiceInstance) validate() error {
+func (s *ServiceInstance) Validate() error {
 	if s.InstanceId == "" {
 		return errors.New("InstanceId cannot be empty")
 	}
@@ -59,7 +59,7 @@ func (d *inMemoryDb) CreateServiceInstance(serviceInstance ServiceInstance) erro
 	log.Infof("CreateServiceInstance: %s", serviceInstance.InstanceId)
 	log.Debugf("Body: %#v", serviceInstance)
 
-	err := serviceInstance.validate()
+	err := serviceInstance.Validate()
 	if err != nil {
 		return err
 	}
