@@ -39,9 +39,10 @@ func main() {
 	}
 
 	r := mux.NewRouter()
+	slHandler := handlers.NewServiceLlifecycleHandler()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)
-	r.HandleFunc("/v2/service_instances/{instanceId}", handlers.ProvisioningHandler).Methods("PUT")
-	r.HandleFunc("/v2/service_instances/{instanceId}", handlers.DeprovisioningHandler).Methods("DELETE")
+	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Provision).Methods("PUT")
+	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Deprovision).Methods("DELETE")
 	r.HandleFunc("/v2/service_instances/{instanceId}/last_operation", handlers.LastOperationHandler)
 
 	var port string
