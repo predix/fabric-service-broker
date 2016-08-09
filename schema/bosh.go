@@ -2,18 +2,17 @@ package schema
 
 import (
 	"errors"
-	"os"
 	"strings"
 )
 
-type boshDetails struct {
+type BoshDetails struct {
 	StemcellName string
 	DirectorUUID string
 	NetworkNames []string
 	Vmtype       string
 }
 
-func (b *boshDetails) validate() error {
+func (b *BoshDetails) Validate() error {
 	if b.StemcellName == "" {
 		return errors.New("StemcellName cannot be empty")
 	}
@@ -29,17 +28,11 @@ func (b *boshDetails) validate() error {
 	return nil
 }
 
-var instance *boshDetails
-
-func init() {
-	instance = &boshDetails{
-		StemcellName: os.Getenv("BOSH_STEMCELL"),
-		DirectorUUID: os.Getenv("BOSH_UUID"),
-		Vmtype:       os.Getenv("BOSH_VM_TYPE"),
-		NetworkNames: strings.Split(os.Getenv("BOSH_NETWORK_NAMES"), ","),
+func NewBoshDetails(stemcellName, uuid, vmType, networkNames string) *BoshDetails {
+	return &BoshDetails{
+		StemcellName: stemcellName,
+		DirectorUUID: uuid,
+		Vmtype:       vmType,
+		NetworkNames: strings.Split(networkNames, ","),
 	}
-}
-
-func GetBoshDetails() *boshDetails {
-	return instance
 }
