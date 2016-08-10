@@ -1,20 +1,16 @@
 package handlers
 
 import (
-	"bytes"
-	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strings"
+	"strconv"
 	"sync"
-	"time"
 
 	"github.com/atulkc/fabric-service-broker/db"
 	sberrors "github.com/atulkc/fabric-service-broker/errors"
 	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 )
 
@@ -24,14 +20,9 @@ type ServiceLifecycleHandler interface {
 	LastOperation(w http.ResponseWriter, r *http.Request)
 }
 
-var provisionResponse = `
+var asyncResponse = `
 {
- "operation": "%s"
-}
-`
-var deprovisionResponse = `
-{
- "operation": "task10"
+ "operation": "%d"
 }
 `
 
@@ -39,34 +30,16 @@ type slHandler struct {
 	boshDetails         *schema.BoshDetails
 	serviceInstanceRepo db.ServiceInstanceRepo
 	availableNetworks   map[string]struct{}
-	httpClient          *http.Client
+	boshClient          util.BoshClient
 	lock                *sync.Mutex
 }
 
-func NewHttpClient(skipTLSVerification bool) *http.Client {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipTLSVerification,
-	}
-	return &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return errors.New("No redirects")
-		},
-		Transport: &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout: 10 * time.Second,
-			}).Dial,
-			TLSClientConfig: tlsConfig,
-		},
-	}
-}
-
-func NewServiceLifecycleHandler(boshDetails *schema.BoshDetails) ServiceLifecycleHandler {
-	inMem := db.GetInMemoryDB()
+func NewServiceLifecycleHandler(repo db.ServiceInstanceRepo, boshClient util.BoshClient, boshDetails *schema.BoshDetails) ServiceLifecycleHandler {
 
 	s := &slHandler{
 		boshDetails:         boshDetails,
-		serviceInstanceRepo: inMem,
-		httpClient:          NewHttpClient(true),
+		serviceInstanceRepo: repo,
+		boshClient:          boshClient,
 		availableNetworks:   make(map[string]struct{}),
 		lock:                &sync.Mutex{},
 	}
@@ -108,11 +81,17 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	instanceId := vars["instanceId"]
 
-	query := r.URL.Query()
-	async := query["accepts_incomplete"]
-	if len(async) < 1 || async[0] != "true" {
-		w.WriteHeader(422)
-		w.Write([]byte(sberrors.ErrAsyncResponse))
+	if !s.isAsyncRequest(w, r) {
+		return
+	}
+
+	existingServiceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+	if existingServiceInstance != nil {
+		handleServiceInstanceAlreadyExists(instanceId, w)
 		return
 	}
 
@@ -123,9 +102,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if networkName == "" {
-		log.Error("No networks available for deployment")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(sberrors.ErrNetworksUnavailable))
+		handleOutOfNetworks(w)
 		return
 	}
 	log.Debugf("Network name selected for this deployment: %s", networkName)
@@ -134,66 +111,28 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 
 	manifest, err := schema.NewManifest(deploymentName, networkName, s.boshDetails)
 	if err != nil {
-		log.Error("Error in generating manifest for deployment", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrManifestGeneration))
+		handleManifestGenerationError(err, w)
 		return
 	}
 	log.Debugf("Manifest generated for deployment")
 
-	body := manifest.String()
-	log.Debugf("Manifest for deployment:%s", body)
-	url := fmt.Sprintf("%s%s", s.boshDetails.BoshDirectorUrl, "/deployments")
-	request, err := http.NewRequest("POST", url, bytes.NewReader([]byte(body)))
+	task, err := s.boshClient.CreateDeployment(*manifest)
 	if err != nil {
-		log.Error("Error in creating http request", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrHttpRequest))
+		handleInternalServerError(err, w)
 		return
 	}
-	request.Header.Set("Content-Type", "text/yaml")
-	log.Debugf("Http request for BOSH director created")
-
-	resp, err := s.httpClient.Do(request)
-	if err != nil && !strings.Contains(err.Error(), "No redirects") {
-		log.Error("Error in connecting to Bosh", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshConnect))
-		return
-	}
-
-	taskUrl := resp.Header.Get("Location")
-	if taskUrl == "" {
-		log.Error("Invalid response from Bosh", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshInvalidResponse))
-		return
-	}
-
-	split := strings.Split(taskUrl, "/")
-	taskId := split[len(split)-1]
-	if taskId == "" {
-		log.Error("Invalid response from Bosh", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshInvalidResponse))
-		return
-	}
-
-	log.Infof("Successfully initiated deployment:%s. Task Id is: %s", deploymentName, taskId)
 
 	serviceInstance := db.ServiceInstance{
 		InstanceId:          instanceId,
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: instanceId,
-		ProvisionTaskId:     taskId,
+		ProvisionTaskId:     strconv.Itoa(task.Id),
 		DeprovisionTaskId:   "",
 	}
-	err = s.serviceInstanceRepo.Create(serviceInstance)
+	err = s.serviceInstanceRepo.Upsert(serviceInstance)
 	if err != nil {
-		log.Error("Error in saving to DB", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrDBSave))
+		handleDBSaveError(err, w)
 		return
 	}
 	log.Debugf("Service instance saved to DB")
@@ -201,36 +140,16 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Network %s deleted from available networks", networkName)
 
 	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(fmt.Sprintf(provisionResponse, taskId)))
+	w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
 }
 
 func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	log.Info("Handling DELETE /v2/service_instances")
-	// vars := mux.Vars(r)
-	// instanceId := vars["instanceId"]
 
-	query := r.URL.Query()
-	async := query["accepts_incomplete"]
-	if len(async) < 1 || async[0] != "true" {
-		w.WriteHeader(422)
-		w.Write([]byte(sberrors.ErrAsyncResponse))
-		return
-	}
-
-	// TODO: get service_id and plan_id
-	// 410 if it doesn't exist
-
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(deprovisionResponse))
-}
-
-func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
-	log.Info("Handling GET /v2/service_instances/:instanceId/last_operation")
-	query := r.URL.Query()
-	taskId := query["operation"]
-	if len(taskId) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("No operation parameter specified"))
+	if !s.isAsyncRequest(w, r) {
 		return
 	}
 
@@ -238,51 +157,116 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 	instanceId := vars["instanceId"]
 	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
 	if err != nil {
-		log.Error("Error in reading from DB", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrDBRead))
+		handleDBReadError(err, w)
 		return
 	}
 	if serviceInstance == nil {
-		log.Infof("Service instance:%s not found in DB", instanceId)
-		w.WriteHeader(http.StatusGone)
-		w.Write([]byte("{}"))
+		handleServiceInstanceGone(instanceId, w)
+		return
+	}
+
+	isProvisionComplete, err := s.isProvisionComplete(serviceInstance)
+	if err != nil {
+		handleBoshConnectError(err, w)
+		return
+	}
+
+	if !isProvisionComplete {
+		handleServiceInstanceInflight(instanceId, w)
+		return
+	}
+
+	task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
+	if err != nil {
+		handleInternalServerError(err, w)
+		return
+	}
+
+	serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
+
+	err = s.serviceInstanceRepo.Upsert(*serviceInstance)
+	if err != nil {
+		handleDBSaveError(err, w)
+		return
+	}
+	log.Debug("Saved service instance to DB")
+
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
+}
+
+func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
+	log.Info("Handling GET /v2/service_instances/:instanceId/last_operation")
+	query := r.URL.Query()
+	taskId := query["operation"]
+	if len(taskId) < 1 {
+		handleBadRequest("No operation parameter specified", w)
+		return
+	}
+
+	vars := mux.Vars(r)
+	instanceId := vars["instanceId"]
+	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+	if serviceInstance == nil {
+		handleServiceInstanceGone(instanceId, w)
 		return
 	}
 
 	log.Debugf("Checking status of task:%s", taskId[0])
-	url := fmt.Sprintf("%s%s%s", s.boshDetails.BoshDirectorUrl, "/tasks/", taskId[0])
-	resp, err := s.httpClient.Get(url)
-	if err != nil && !strings.Contains(err.Error(), "No redirects") {
-		log.Error("Error in connecting to Bosh", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshConnect))
-		return
-	}
-	log.Debug("Received response from Bosh")
-	if resp.StatusCode == http.StatusNotFound {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Invalid operation parameter specified"))
-		return
-	}
-	if resp.StatusCode != http.StatusOK {
-		log.Error("Non OK status code from BOSH")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshInvalidResponse))
-		return
-	}
 
-	task := schema.Task{}
-	err = json.NewDecoder(resp.Body).Decode(&task)
+	task, err := s.boshClient.GetTask(taskId[0])
 	if err != nil {
-		log.Error("Error in decoding response from Bosh", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(sberrors.ErrBoshInvalidResponse))
+		handleInternalServerError(err, w)
 		return
 	}
 
-	lastOperationResponse := schema.GetLastOperationResponse(task.State)
+	operation := schema.OpProvision
+	if serviceInstance.DeprovisionTaskId == taskId[0] {
+		operation = schema.OpDeprovision
+	}
+
+	lastOperationResponse := schema.GetLastOperationResponse(operation, task.State)
+	if lastOperationResponse.State == schema.StateSucceeded &&
+		taskId[0] == serviceInstance.DeprovisionTaskId {
+		log.Info("Delete operation succeeded. Removing entry from DB")
+		s.lock.Lock()
+		defer s.lock.Unlock()
+		_, err := s.serviceInstanceRepo.Delete(serviceInstance.InstanceId)
+		if err != nil {
+			handleDBDeleteError(err, w)
+			return
+		}
+		log.Info("Returning network %s back to available pool", serviceInstance.NetworkName)
+		s.availableNetworks[serviceInstance.NetworkName] = struct{}{}
+	}
 	w.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(lastOperationResponse)
+}
+
+func (s *slHandler) isAsyncRequest(w http.ResponseWriter, r *http.Request) bool {
+	query := r.URL.Query()
+	async := query["accepts_incomplete"]
+	if len(async) < 1 || async[0] != "true" {
+		w.WriteHeader(422)
+		w.Write([]byte(sberrors.ErrAsyncResponse))
+		return false
+	}
+
+	return true
+}
+
+func (s *slHandler) isProvisionComplete(serviceInstance *db.ServiceInstance) (bool, error) {
+	task, err := s.boshClient.GetTask(serviceInstance.ProvisionTaskId)
+	if err != nil {
+		return false, err
+	}
+	if task.State != schema.BoshStateDone {
+		return false, nil
+	}
+	return true, nil
 }

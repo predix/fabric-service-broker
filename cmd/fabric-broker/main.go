@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/atulkc/fabric-service-broker/db"
 	"github.com/atulkc/fabric-service-broker/handlers"
 	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
 )
@@ -65,7 +67,10 @@ func main() {
 		log.Error("Environment not setup for bosh director use", err)
 		os.Exit(1)
 	}
-	slHandler := handlers.NewServiceLifecycleHandler(boshDetails)
+
+	serviceInstanceRepo := db.GetInMemoryDB()
+	boshClient := util.NewBoshHttpClient(boshDetails)
+	slHandler := handlers.NewServiceLifecycleHandler(serviceInstanceRepo, boshClient, boshDetails)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)

@@ -37,6 +37,13 @@ const ErrDBSave = `
 }
 `
 
+const ErrDBDelete = `
+{
+  "error": "DBDelete",
+  "description": "Unable to delete from DB"
+}
+`
+
 const ErrDBRead = `
 {
   "error": "DBRead",
@@ -48,5 +55,19 @@ const ErrBoshInvalidResponse = `
 {
   "error": "BoshInvalidResponse",
   "description": "Invalid response from Bosh"
+}
+`
+
+const ErrResourceAlreadyExists = `
+{
+  "error": "ResourceAlreadyExists",
+  "description": "Resource already exists"
+}
+`
+
+const ErrProvisionInFlight = `
+{
+  "error": "ProvisionInFlight",
+  "description": "Service instance is still being deployed"
 }
 `

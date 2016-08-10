@@ -32,7 +32,7 @@ func (s ServiceInstance) Validate() error {
 }
 
 type ServiceInstanceRepo interface {
-	Create(serviceInstance ServiceInstance) error
+	Upsert(serviceInstance ServiceInstance) error
 	Find(serviceInstanceId string) (*ServiceInstance, error)
 	List() ([]ServiceInstance, error)
 	Delete(serviceInstanceId string) (*ServiceInstance, error)
@@ -56,8 +56,8 @@ func GetInMemoryDB() *inMemoryDb {
 	return inMemoryDbInstance
 }
 
-func (d *inMemoryDb) Create(serviceInstance ServiceInstance) error {
-	log.Infof("CreateServiceInstance: %s", serviceInstance.InstanceId)
+func (d *inMemoryDb) Upsert(serviceInstance ServiceInstance) error {
+	log.Infof("UpsertServiceInstance: %s", serviceInstance.InstanceId)
 	log.Debugf("Body: %#v", serviceInstance)
 
 	err := serviceInstance.Validate()

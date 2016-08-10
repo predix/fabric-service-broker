@@ -9,21 +9,21 @@ import (
 )
 
 func TestGetLastOperationResponse_Processing(t *testing.T) {
-	lastOperationResponse := schema.GetLastOperationResponse(schema.BoshStateProcessing)
+	lastOperationResponse := schema.GetLastOperationResponse(schema.OpProvision, schema.BoshStateProcessing)
 	Equal(t, lastOperationResponse.State, schema.StateInProgress)
 }
 
 func TestGetLastOperationResponse_Queued(t *testing.T) {
-	lastOperationResponse := schema.GetLastOperationResponse(schema.BoshStateQueued)
+	lastOperationResponse := schema.GetLastOperationResponse(schema.OpProvision, schema.BoshStateQueued)
 	Equal(t, lastOperationResponse.State, schema.StateInProgress)
 }
 
 func TestGetLastOperationResponse_Succeeded(t *testing.T) {
-	lastOperationResponse := schema.GetLastOperationResponse(schema.BoshStateDone)
+	lastOperationResponse := schema.GetLastOperationResponse(schema.OpProvision, schema.BoshStateDone)
 	Equal(t, lastOperationResponse.State, schema.StateSucceeded)
 }
 
 func TestGetLastOperationResponse_Failed(t *testing.T) {
-	lastOperationResponse := schema.GetLastOperationResponse("failed")
+	lastOperationResponse := schema.GetLastOperationResponse(schema.OpProvision, "failed")
 	Equal(t, lastOperationResponse.State, schema.StateFailed)
 }
