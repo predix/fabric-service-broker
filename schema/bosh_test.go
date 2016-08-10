@@ -13,10 +13,11 @@ const (
 	boshUuid     = "uuid-1"
 	vmType       = "vmtype"
 	networkNames = "net1,net2,net3"
+	directorUrl  = "http://the-bosh-director"
 )
 
 func TestNewBoshDetails(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames)
+	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	Equal(t, boshDetails.StemcellName, boshStemcell)
 	Equal(t, boshDetails.DirectorUUID, boshUuid)
@@ -27,7 +28,7 @@ func TestNewBoshDetails(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_Stemcell(t *testing.T) {
-	boshDetails := schema.NewBoshDetails("", boshUuid, vmType, networkNames)
+	boshDetails := schema.NewBoshDetails("", boshUuid, vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, err, nil)
@@ -35,7 +36,7 @@ func TestBoshDetailsValidate_Stemcell(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_UUID(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, "", vmType, networkNames)
+	boshDetails := schema.NewBoshDetails(boshStemcell, "", vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
@@ -43,7 +44,7 @@ func TestBoshDetailsValidate_UUID(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_VmType(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, "", networkNames)
+	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, "", networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
@@ -51,9 +52,17 @@ func TestBoshDetailsValidate_VmType(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_NetworkNames(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, "")
+	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, "", directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
 	Equal(t, err.Error(), "Invalid network name in the list")
+}
+
+func TestBoshDetailsValidate_DirectorUrl(t *testing.T) {
+	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, "")
+	NotEqual(t, boshDetails, nil)
+	err := boshDetails.Validate()
+	NotEqual(t, boshDetails, nil)
+	Equal(t, err.Error(), "BoshDirectorUrl cannot be empty")
 }

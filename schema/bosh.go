@@ -6,10 +6,11 @@ import (
 )
 
 type BoshDetails struct {
-	StemcellName string
-	DirectorUUID string
-	NetworkNames []string
-	Vmtype       string
+	StemcellName    string
+	DirectorUUID    string
+	NetworkNames    []string
+	Vmtype          string
+	BoshDirectorUrl string
 }
 
 func (b *BoshDetails) Validate() error {
@@ -27,14 +28,18 @@ func (b *BoshDetails) Validate() error {
 			return errors.New("Invalid network name in the list")
 		}
 	}
+	if b.BoshDirectorUrl == "" {
+		return errors.New("BoshDirectorUrl cannot be empty")
+	}
 	return nil
 }
 
-func NewBoshDetails(stemcellName, uuid, vmType, networkNames string) *BoshDetails {
+func NewBoshDetails(stemcellName, uuid, vmType, networkNames, boshDirectorUrl string) *BoshDetails {
 	return &BoshDetails{
-		StemcellName: stemcellName,
-		DirectorUUID: uuid,
-		Vmtype:       vmType,
-		NetworkNames: strings.Split(networkNames, ","),
+		StemcellName:    stemcellName,
+		DirectorUUID:    uuid,
+		Vmtype:          vmType,
+		NetworkNames:    strings.Split(strings.Replace(networkNames, " ", "", -1), ","),
+		BoshDirectorUrl: boshDirectorUrl,
 	}
 }

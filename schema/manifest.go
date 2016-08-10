@@ -102,7 +102,7 @@ type Properties struct {
 	Peer PeerProperties `yaml:"peer"`
 }
 
-func NewManifest() (*Manifest, error) {
+func NewManifest(deploymentName, networkName string, details *BoshDetails) (*Manifest, error) {
 	manifest := Manifest{}
 
 	err := yaml.Unmarshal([]byte(defaultManifest), &manifest)
@@ -110,6 +110,13 @@ func NewManifest() (*Manifest, error) {
 		log.Error("Error unmarshalling manifest file", err)
 		return nil, err
 	}
+
+	manifest.Name = deploymentName
+	manifest.Properties.Peer.Network["id"] = deploymentName
+	manifest.Jobs[0].Networks[0]["name"] = networkName
+	manifest.Jobs[0].VmType = details.Vmtype
+	manifest.DirectorUuid = details.DirectorUUID
+	manifest.Stemcells[0].Name = details.StemcellName
 
 	return &manifest, nil
 }

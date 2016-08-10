@@ -58,23 +58,20 @@ var boshNetworks = flag.String(
 func main() {
 	flag.Parse()
 	log.Debug("Starting fabric service broker")
-	if *boshDirectorUrl == "" {
-		log.Fatal("No BOSH director URL provided")
-		os.Exit(1)
-	}
 
-	r := mux.NewRouter()
 	boshDetails := getBoshDetails()
 	err := boshDetails.Validate()
 	if err != nil {
 		log.Error("Environment not setup for bosh director use", err)
-		os.Exit(2)
+		os.Exit(1)
 	}
-	slHandler := handlers.NewServiceLifecycleHandler()
+	slHandler := handlers.NewServiceLifecycleHandler(boshDetails)
+
+	r := mux.NewRouter()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Provision).Methods("PUT")
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Deprovision).Methods("DELETE")
-	r.HandleFunc("/v2/service_instances/{instanceId}/last_operation", handlers.LastOperationHandler)
+	r.HandleFunc("/v2/service_instances/{instanceId}/last_operation", slHandler.LastOperation)
 
 	var port string
 	port = os.Getenv("PORT")
@@ -92,5 +89,6 @@ func getBoshDetails() *schema.BoshDetails {
 		*boshDirectorUuid,
 		*boshVmType,
 		*boshNetworks,
+		*boshDirectorUrl,
 	)
 }
