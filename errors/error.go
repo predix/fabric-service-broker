@@ -37,6 +37,13 @@ const ErrDBSave = `
 }
 `
 
+const ErrDBRead = `
+{
+  "error": "DBRead",
+  "description": "Unable to read from DB"
+}
+`
+
 const ErrBoshInvalidResponse = `
 {
   "error": "BoshInvalidResponse",

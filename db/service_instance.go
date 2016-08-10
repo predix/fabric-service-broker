@@ -33,9 +33,9 @@ func (s ServiceInstance) Validate() error {
 
 type ServiceInstanceRepo interface {
 	Create(serviceInstance ServiceInstance) error
-	Find(serviceInstanceId string) (ServiceInstance, error)
+	Find(serviceInstanceId string) (*ServiceInstance, error)
 	List() ([]ServiceInstance, error)
-	Delete(serviceInstanceId string) (ServiceInstance, error)
+	Delete(serviceInstanceId string) (*ServiceInstance, error)
 }
 
 type inMemoryDb struct {
@@ -69,9 +69,15 @@ func (d *inMemoryDb) Create(serviceInstance ServiceInstance) error {
 	return nil
 }
 
-func (d *inMemoryDb) Find(serviceInstanceId string) (ServiceInstance, error) {
+func (d *inMemoryDb) Find(serviceInstanceId string) (*ServiceInstance, error) {
 	log.Infof("FindServiceInstance: %s", serviceInstanceId)
-	return d.data[serviceInstanceId], nil
+	serviceInstance, ok := d.data[serviceInstanceId]
+	if !ok {
+		log.Debugf("No record with key %s found", serviceInstanceId)
+		return nil, nil
+	}
+
+	return &serviceInstance, nil
 }
 
 func (d *inMemoryDb) List() ([]ServiceInstance, error) {
@@ -85,7 +91,7 @@ func (d *inMemoryDb) List() ([]ServiceInstance, error) {
 	return list, nil
 }
 
-func (d *inMemoryDb) Delete(serviceInstanceId string) (ServiceInstance, error) {
+func (d *inMemoryDb) Delete(serviceInstanceId string) (*ServiceInstance, error) {
 	log.Infof("DeleteServiceInstance: %s", serviceInstanceId)
 	serviceInstance, ok := d.data[serviceInstanceId]
 	if !ok {
@@ -94,5 +100,5 @@ func (d *inMemoryDb) Delete(serviceInstanceId string) (ServiceInstance, error) {
 
 	delete(d.data, serviceInstanceId)
 
-	return serviceInstance, nil
+	return &serviceInstance, nil
 }

@@ -234,6 +234,22 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	vars := mux.Vars(r)
+	instanceId := vars["instanceId"]
+	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	if err != nil {
+		log.Error("Error in reading from DB", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(sberrors.ErrDBRead))
+		return
+	}
+	if serviceInstance == nil {
+		log.Infof("Service instance:%s not found in DB", instanceId)
+		w.WriteHeader(http.StatusGone)
+		w.Write([]byte("{}"))
+		return
+	}
+
 	log.Debugf("Checking status of task:%s", taskId[0])
 	url := fmt.Sprintf("%s%s%s", s.boshDetails.BoshDirectorUrl, "/tasks/", taskId[0])
 	resp, err := s.httpClient.Get(url)
