@@ -77,7 +77,8 @@ func main() {
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Provision).Methods("PUT")
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Deprovision).Methods("DELETE")
 	r.HandleFunc("/v2/service_instances/{instanceId}/last_operation", slHandler.LastOperation)
-	r.HandleFunc("/v2/service_instances/{instanceId}/service_bindings/{bindingId}", slHandler.Bind)
+	r.HandleFunc("/v2/service_instances/{instanceId}/service_bindings/{bindingId}", slHandler.Bind).Methods("PUT")
+	r.HandleFunc("/v2/service_instances/{instanceId}/service_bindings/{bindingId}", slHandler.Unbind).Methods("DELETE")
 
 	var port string
 	port = os.Getenv("PORT")

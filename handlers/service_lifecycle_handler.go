@@ -19,6 +19,7 @@ type ServiceLifecycleHandler interface {
 	Deprovision(w http.ResponseWriter, r *http.Request)
 	LastOperation(w http.ResponseWriter, r *http.Request)
 	Bind(w http.ResponseWriter, r *http.Request)
+	Unbind(w http.ResponseWriter, r *http.Request)
 }
 
 var asyncResponse = `
@@ -313,6 +314,47 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeBindingResponse(vmsIps, w)
+}
+
+func (s *slHandler) Unbind(w http.ResponseWriter, r *http.Request) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	log.Info("Handling DELETE /v2/service_instances/:instanceId/service_bindings/:bindingId")
+
+	vars := mux.Vars(r)
+	instanceId := vars["instanceId"]
+	bindingId := vars["bindingId"]
+
+	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+	if serviceInstance == nil {
+		handleNotFound("instance not found", w)
+		return
+	}
+
+	serviceBinding, err := s.serviceBindingRepo.FindBinding(bindingId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+
+	if serviceBinding == nil {
+		handleServiceBindingGone(bindingId, w)
+		return
+	}
+
+	log.Debugf("Deleting binding :%s from DB", bindingId)
+	_, err = s.serviceBindingRepo.DeleteBinding(bindingId)
+	if err != nil {
+		handleDBSaveError(err, w)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
 }
 
 func (s *slHandler) writeBindingResponse(vmsIps map[string][]string, w http.ResponseWriter) {

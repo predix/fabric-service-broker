@@ -36,6 +36,12 @@ func handleServiceInstanceGone(instanceId string, w http.ResponseWriter) {
 	w.Write([]byte("{}"))
 }
 
+func handleServiceBindingGone(bindingId string, w http.ResponseWriter) {
+	log.Infof("Service binding:%s not found in DB", bindingId)
+	w.WriteHeader(http.StatusGone)
+	w.Write([]byte("{}"))
+}
+
 func handleServiceInstanceInflight(instanceId string, w http.ResponseWriter) {
 	log.Infof("Service instance is still being deployed: %s", instanceId)
 	w.WriteHeader(http.StatusBadRequest)
