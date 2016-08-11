@@ -87,3 +87,9 @@ func handleServiceBindingAlreadyExists(bindingId string, w http.ResponseWriter) 
 	w.WriteHeader(http.StatusConflict)
 	w.Write([]byte(sberrors.ErrResourceAlreadyExists))
 }
+
+func handleInstanceAlreadyBound(w http.ResponseWriter) {
+	log.Infof("Binding exists for service instance")
+	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte(sberrors.ErrBindingsExist))
+}

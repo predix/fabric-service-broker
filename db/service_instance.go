@@ -52,6 +52,7 @@ type ServiceInstanceRepo interface {
 	Find(serviceInstanceId string) (*ServiceInstance, error)
 	List() ([]ServiceInstance, error)
 	Delete(serviceInstanceId string) (*ServiceInstance, error)
+	GetBindings(serviceInstanceId string) (ServiceBindings, error)
 }
 
 type ServiceBindingRepo interface {
@@ -61,8 +62,9 @@ type ServiceBindingRepo interface {
 }
 
 type inMemoryDb struct {
-	serviceInstanceRepo map[string]ServiceInstance
-	serviceBindingRepo  map[string]ServiceBinding
+	serviceInstanceRepo       map[string]ServiceInstance
+	serviceBindingRepo        map[string]ServiceBinding
+	serviceInstanceBindingMap map[string]ServiceBindings
 }
 
 var log = logging.MustGetLogger("db")
@@ -71,8 +73,9 @@ var inMemoryDbInstance *inMemoryDb
 
 func init() {
 	inMemoryDbInstance = &inMemoryDb{
-		serviceInstanceRepo: make(map[string]ServiceInstance),
-		serviceBindingRepo:  make(map[string]ServiceBinding),
+		serviceInstanceRepo:       make(map[string]ServiceInstance),
+		serviceBindingRepo:        make(map[string]ServiceBinding),
+		serviceInstanceBindingMap: make(map[string]ServiceBindings),
 	}
 }
 
@@ -123,8 +126,14 @@ func (d *inMemoryDb) Delete(serviceInstanceId string) (*ServiceInstance, error) 
 	}
 
 	delete(d.serviceInstanceRepo, serviceInstanceId)
+	delete(d.serviceInstanceBindingMap, serviceInstanceId)
 
 	return &serviceInstance, nil
+}
+
+func (d *inMemoryDb) GetBindings(instanceId string) (ServiceBindings, error) {
+	log.Infof("GetBindings")
+	return d.serviceInstanceBindingMap[instanceId], nil
 }
 
 func (d *inMemoryDb) UpsertBinding(serviceBinding ServiceBinding) error {
@@ -137,6 +146,12 @@ func (d *inMemoryDb) UpsertBinding(serviceBinding ServiceBinding) error {
 	}
 
 	d.serviceBindingRepo[serviceBinding.BindingId] = serviceBinding
+	bindings, found := d.serviceInstanceBindingMap[serviceBinding.InstanceId]
+	if !found {
+		bindings = ServiceBindings{}
+	}
+	bindings = append(bindings, serviceBinding)
+	d.serviceInstanceBindingMap[serviceBinding.InstanceId] = bindings
 	return nil
 }
 
@@ -159,6 +174,21 @@ func (d *inMemoryDb) DeleteBinding(bindingId string) (*ServiceBinding, error) {
 	}
 
 	delete(d.serviceBindingRepo, bindingId)
+
+	bindings, found := d.serviceInstanceBindingMap[serviceBinding.InstanceId]
+	if found {
+		newBindings := ServiceBindings{}
+		for _, binding := range bindings {
+			if binding.BindingId != bindingId {
+				newBindings = append(newBindings, binding)
+			}
+		}
+		if len(newBindings) == 0 {
+			delete(d.serviceInstanceBindingMap, serviceBinding.InstanceId)
+		} else {
+			d.serviceInstanceBindingMap[serviceBinding.InstanceId] = newBindings
+		}
+	}
 
 	return &serviceBinding, nil
 }

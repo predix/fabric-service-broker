@@ -71,3 +71,10 @@ const ErrProvisionInFlight = `
   "description": "Service instance is still being deployed"
 }
 `
+
+const ErrBindingsExist = `
+{
+  "error": "BindingExist",
+  "description": "Service instance cannot be deleted as bindings exist"
+}
+`

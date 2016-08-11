@@ -174,11 +174,22 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 		handleBoshConnectError(err, w)
 		return
 	}
-
 	if !isProvisionComplete {
 		handleServiceInstanceInflight(instanceId, w)
 		return
 	}
+
+	bindings, err := s.serviceInstanceRepo.GetBindings(instanceId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+	if len(bindings) > 0 {
+		log.Infof("Total %d bindings exist for service instance %s", len(bindings), instanceId)
+		handleInstanceAlreadyBound(w)
+		return
+	}
+	log.Debugf("No bindings for service instance :%d", instanceId)
 
 	task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
 	if err != nil {
@@ -244,7 +255,7 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 			handleDBDeleteError(err, w)
 			return
 		}
-		log.Info("Returning network %s back to available pool", serviceInstance.NetworkName)
+		log.Infof("Returning network %s back to available pool", serviceInstance.NetworkName)
 		s.availableNetworks[serviceInstance.NetworkName] = struct{}{}
 	}
 	w.WriteHeader(http.StatusOK)
