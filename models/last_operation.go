@@ -1,4 +1,4 @@
-package schema
+package models
 
 const (
 	StateInProgress = "in progress"

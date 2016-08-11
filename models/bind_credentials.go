@@ -1,4 +1,4 @@
-package schema
+package models
 
 type BindCredentials struct {
 	Credentials BlockChainCredentials `json:"credentials"`

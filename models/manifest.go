@@ -1,4 +1,4 @@
-package schema
+package models
 
 import (
 	"gopkg.in/yaml.v2"
@@ -6,7 +6,7 @@ import (
 	"github.com/op/go-logging"
 )
 
-var log = logging.MustGetLogger("manifest-schema")
+var log = logging.MustGetLogger("manifest-models")
 
 const defaultManifest = `
 ---

@@ -1,9 +1,9 @@
-package schema_test
+package models_test
 
 import (
 	"testing"
 
-	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/models"
 
 	. "gopkg.in/go-playground/assert.v1"
 )
@@ -17,7 +17,7 @@ const (
 )
 
 func TestNewBoshDetails(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, directorUrl)
+	boshDetails := models.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	Equal(t, boshDetails.StemcellName, boshStemcell)
 	Equal(t, boshDetails.DirectorUUID, boshUuid)
@@ -28,7 +28,7 @@ func TestNewBoshDetails(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_Stemcell(t *testing.T) {
-	boshDetails := schema.NewBoshDetails("", boshUuid, vmType, networkNames, directorUrl)
+	boshDetails := models.NewBoshDetails("", boshUuid, vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, err, nil)
@@ -36,7 +36,7 @@ func TestBoshDetailsValidate_Stemcell(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_UUID(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, "", vmType, networkNames, directorUrl)
+	boshDetails := models.NewBoshDetails(boshStemcell, "", vmType, networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
@@ -44,7 +44,7 @@ func TestBoshDetailsValidate_UUID(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_VmType(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, "", networkNames, directorUrl)
+	boshDetails := models.NewBoshDetails(boshStemcell, boshUuid, "", networkNames, directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
@@ -52,7 +52,7 @@ func TestBoshDetailsValidate_VmType(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_NetworkNames(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, "", directorUrl)
+	boshDetails := models.NewBoshDetails(boshStemcell, boshUuid, vmType, "", directorUrl)
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)
@@ -60,7 +60,7 @@ func TestBoshDetailsValidate_NetworkNames(t *testing.T) {
 }
 
 func TestBoshDetailsValidate_DirectorUrl(t *testing.T) {
-	boshDetails := schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, "")
+	boshDetails := models.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, "")
 	NotEqual(t, boshDetails, nil)
 	err := boshDetails.Validate()
 	NotEqual(t, boshDetails, nil)

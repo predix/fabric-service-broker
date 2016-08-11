@@ -9,7 +9,7 @@ import (
 
 	"github.com/atulkc/fabric-service-broker/db"
 	sberrors "github.com/atulkc/fabric-service-broker/errors"
-	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/models"
 	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 )
@@ -29,7 +29,7 @@ var asyncResponse = `
 `
 
 type slHandler struct {
-	boshDetails         *schema.BoshDetails
+	boshDetails         *models.BoshDetails
 	serviceInstanceRepo db.ServiceInstanceRepo
 	serviceBindingRepo  db.ServiceBindingRepo
 	availableNetworks   map[string]struct{}
@@ -37,7 +37,7 @@ type slHandler struct {
 	lock                *sync.Mutex
 }
 
-func NewServiceLifecycleHandler(siRepo db.ServiceInstanceRepo, sbRepo db.ServiceBindingRepo, boshClient util.BoshClient, boshDetails *schema.BoshDetails) ServiceLifecycleHandler {
+func NewServiceLifecycleHandler(siRepo db.ServiceInstanceRepo, sbRepo db.ServiceBindingRepo, boshClient util.BoshClient, boshDetails *models.BoshDetails) ServiceLifecycleHandler {
 
 	s := &slHandler{
 		boshDetails:         boshDetails,
@@ -113,7 +113,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 
 	deploymentName := fmt.Sprintf("fabric-%s", instanceId)
 
-	manifest, err := schema.NewManifest(deploymentName, networkName, s.boshDetails)
+	manifest, err := models.NewManifest(deploymentName, networkName, s.boshDetails)
 	if err != nil {
 		handleManifestGenerationError(err, w)
 		return
@@ -239,13 +239,13 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	operation := schema.OpProvision
+	operation := models.OpProvision
 	if serviceInstance.DeprovisionTaskId == taskId[0] {
-		operation = schema.OpDeprovision
+		operation = models.OpDeprovision
 	}
 
-	lastOperationResponse := schema.GetLastOperationResponse(operation, task.State)
-	if lastOperationResponse.State == schema.StateSucceeded &&
+	lastOperationResponse := models.GetLastOperationResponse(operation, task.State)
+	if lastOperationResponse.State == models.StateSucceeded &&
 		taskId[0] == serviceInstance.DeprovisionTaskId {
 		log.Info("Delete operation succeeded. Removing entry from DB")
 		s.lock.Lock()
@@ -377,8 +377,8 @@ func (s *slHandler) writeBindingResponse(vmsIps map[string][]string, w http.Resp
 		peerEndpoints = append(peerEndpoints, fmt.Sprintf("%s:5000", peerIp))
 	}
 
-	bindCredentials := schema.BindCredentials{
-		Credentials: schema.BlockChainCredentials{
+	bindCredentials := models.BindCredentials{
+		Credentials: models.BlockChainCredentials{
 			PeerEndpoints: peerEndpoints,
 		},
 	}
@@ -406,7 +406,7 @@ func (s *slHandler) isProvisionComplete(serviceInstance *db.ServiceInstance) (bo
 	if err != nil {
 		return false, err
 	}
-	if task.State != schema.BoshStateDone {
+	if task.State != models.BoshStateDone {
 		return false, nil
 	}
 	return true, nil

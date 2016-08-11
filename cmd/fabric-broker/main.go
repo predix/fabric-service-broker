@@ -8,7 +8,7 @@ import (
 
 	"github.com/atulkc/fabric-service-broker/db"
 	"github.com/atulkc/fabric-service-broker/handlers"
-	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/models"
 	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
@@ -89,9 +89,9 @@ func main() {
 	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
 }
 
-func getBoshDetails() *schema.BoshDetails {
+func getBoshDetails() *models.BoshDetails {
 	log.Info("Getting Bosh details from environment")
-	return schema.NewBoshDetails(
+	return models.NewBoshDetails(
 		*boshStemcellName,
 		*boshDirectorUuid,
 		*boshVmType,

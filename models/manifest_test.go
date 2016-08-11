@@ -1,10 +1,10 @@
-package schema_test
+package models_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/models"
 
 	. "gopkg.in/go-playground/assert.v1"
 )
@@ -14,12 +14,12 @@ const (
 	networkName    = "mynet"
 )
 
-var boshDetails = schema.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, directorUrl)
+var boshDetails = models.NewBoshDetails(boshStemcell, boshUuid, vmType, networkNames, directorUrl)
 
 func TestNewManifest(t *testing.T) {
-	manifest, err := schema.NewManifest(deploymentName, networkName, boshDetails)
+	manifest, err := models.NewManifest(deploymentName, networkName, boshDetails)
 
-	stemcell := schema.Stemcell{
+	stemcell := models.Stemcell{
 		Alias:   "default",
 		Name:    boshStemcell,
 		Version: "latest",
@@ -38,7 +38,7 @@ func TestNewManifest(t *testing.T) {
 }
 
 func TestManifestToString(t *testing.T) {
-	manifest, err := schema.NewManifest(deploymentName, networkName, boshDetails)
+	manifest, err := models.NewManifest(deploymentName, networkName, boshDetails)
 
 	Equal(t, err, nil)
 	NotEqual(t, manifest, nil)

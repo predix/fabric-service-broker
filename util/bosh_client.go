@@ -13,22 +13,22 @@ import (
 	"time"
 
 	sberrors "github.com/atulkc/fabric-service-broker/errors"
-	"github.com/atulkc/fabric-service-broker/schema"
+	"github.com/atulkc/fabric-service-broker/models"
 	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger("util")
 
 type BoshClient interface {
-	CreateDeployment(manifest schema.Manifest) (*schema.Task, error)
-	DeleteDeployment(deploymentName string) (*schema.Task, error)
-	GetTask(taskId string) (*schema.Task, error)
+	CreateDeployment(manifest models.Manifest) (*models.Task, error)
+	DeleteDeployment(deploymentName string) (*models.Task, error)
+	GetTask(taskId string) (*models.Task, error)
 	GetVmIps(deploymentName string) (map[string][]string, error)
 }
 
 type boshHttpClient struct {
 	httpClient  *http.Client
-	boshDetails *schema.BoshDetails
+	boshDetails *models.BoshDetails
 }
 
 func newHttpClient(skipTLSVerification bool) *http.Client {
@@ -48,14 +48,14 @@ func newHttpClient(skipTLSVerification bool) *http.Client {
 	}
 }
 
-func NewBoshHttpClient(boshDetails *schema.BoshDetails) BoshClient {
+func NewBoshHttpClient(boshDetails *models.BoshDetails) BoshClient {
 	return &boshHttpClient{
 		boshDetails: boshDetails,
 		httpClient:  newHttpClient(true),
 	}
 }
 
-func (c *boshHttpClient) CreateDeployment(manifest schema.Manifest) (*schema.Task, error) {
+func (c *boshHttpClient) CreateDeployment(manifest models.Manifest) (*models.Task, error) {
 	log.Debug("In CreateDeployment")
 	body := manifest.String()
 	log.Debugf("Manifest for deployment:%s", body)
@@ -85,7 +85,7 @@ func (c *boshHttpClient) CreateDeployment(manifest schema.Manifest) (*schema.Tas
 	return c.GetTask(taskId)
 }
 
-func (c *boshHttpClient) DeleteDeployment(deploymentName string) (*schema.Task, error) {
+func (c *boshHttpClient) DeleteDeployment(deploymentName string) (*models.Task, error) {
 	log.Debug("In DeleteDeployment")
 	url := fmt.Sprintf("%s%s%s", c.boshDetails.BoshDirectorUrl, "/deployments/", deploymentName)
 
@@ -110,7 +110,7 @@ func (c *boshHttpClient) DeleteDeployment(deploymentName string) (*schema.Task, 
 	return c.GetTask(taskId)
 }
 
-func (c *boshHttpClient) GetTask(taskId string) (*schema.Task, error) {
+func (c *boshHttpClient) GetTask(taskId string) (*models.Task, error) {
 	log.Debug("In GetTask")
 	url := fmt.Sprintf("%s%s%s", c.boshDetails.BoshDirectorUrl, "/tasks/", taskId)
 	resp, err := c.httpClient.Get(url)
@@ -127,7 +127,7 @@ func (c *boshHttpClient) GetTask(taskId string) (*schema.Task, error) {
 		return nil, errors.New(fmt.Sprintf("Non OK status code from BOSH: %d", resp.StatusCode))
 	}
 
-	task := schema.Task{}
+	task := models.Task{}
 	err = json.NewDecoder(resp.Body).Decode(&task)
 	if err != nil {
 		log.Error("Error in decoding response from Bosh", err)
