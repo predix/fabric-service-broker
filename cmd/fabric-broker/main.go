@@ -68,15 +68,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	serviceInstanceRepo := db.GetInMemoryDB()
+	repo := db.GetInMemoryDB()
 	boshClient := util.NewBoshHttpClient(boshDetails)
-	slHandler := handlers.NewServiceLifecycleHandler(serviceInstanceRepo, boshClient, boshDetails)
+	slHandler := handlers.NewServiceLifecycleHandler(repo, repo, boshClient, boshDetails)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Provision).Methods("PUT")
 	r.HandleFunc("/v2/service_instances/{instanceId}", slHandler.Deprovision).Methods("DELETE")
 	r.HandleFunc("/v2/service_instances/{instanceId}/last_operation", slHandler.LastOperation)
+	r.HandleFunc("/v2/service_instances/{instanceId}/service_bindings/{bindingId}", slHandler.Bind)
 
 	var port string
 	port = os.Getenv("PORT")

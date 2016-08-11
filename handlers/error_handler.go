@@ -55,7 +55,7 @@ func handleManifestGenerationError(err error, w http.ResponseWriter) {
 }
 
 func handleInternalServerError(err error, w http.ResponseWriter) {
-	log.Error("Error in generating manifest for deployment", err)
+	log.Error("Unexpected error occurred", err)
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte(err.Error()))
 }
@@ -69,4 +69,15 @@ func handleBoshConnectError(err error, w http.ResponseWriter) {
 func handleBadRequest(errString string, w http.ResponseWriter) {
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte(errString))
+}
+
+func handleNotFound(errString string, w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(errString))
+}
+
+func handleServiceBindingAlreadyExists(bindingId string, w http.ResponseWriter) {
+	log.Infof("Service binding:%s already exists", bindingId)
+	w.WriteHeader(http.StatusConflict)
+	w.Write([]byte(sberrors.ErrResourceAlreadyExists))
 }

@@ -18,6 +18,7 @@ type ServiceLifecycleHandler interface {
 	Provision(w http.ResponseWriter, r *http.Request)
 	Deprovision(w http.ResponseWriter, r *http.Request)
 	LastOperation(w http.ResponseWriter, r *http.Request)
+	Bind(w http.ResponseWriter, r *http.Request)
 }
 
 var asyncResponse = `
@@ -29,16 +30,18 @@ var asyncResponse = `
 type slHandler struct {
 	boshDetails         *schema.BoshDetails
 	serviceInstanceRepo db.ServiceInstanceRepo
+	serviceBindingRepo  db.ServiceBindingRepo
 	availableNetworks   map[string]struct{}
 	boshClient          util.BoshClient
 	lock                *sync.Mutex
 }
 
-func NewServiceLifecycleHandler(repo db.ServiceInstanceRepo, boshClient util.BoshClient, boshDetails *schema.BoshDetails) ServiceLifecycleHandler {
+func NewServiceLifecycleHandler(siRepo db.ServiceInstanceRepo, sbRepo db.ServiceBindingRepo, boshClient util.BoshClient, boshDetails *schema.BoshDetails) ServiceLifecycleHandler {
 
 	s := &slHandler{
 		boshDetails:         boshDetails,
-		serviceInstanceRepo: repo,
+		serviceInstanceRepo: siRepo,
+		serviceBindingRepo:  sbRepo,
 		boshClient:          boshClient,
 		availableNetworks:   make(map[string]struct{}),
 		lock:                &sync.Mutex{},
@@ -246,6 +249,91 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(w)
 	encoder.Encode(lastOperationResponse)
+}
+
+func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	log.Info("Handling PUT /v2/service_instances/:instanceId/service_bindings/:bindingId")
+
+	vars := mux.Vars(r)
+	instanceId := vars["instanceId"]
+	bindingId := vars["bindingId"]
+
+	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+	if serviceInstance == nil {
+		handleNotFound("instances not found", w)
+		return
+	}
+
+	serviceBinding, err := s.serviceBindingRepo.FindBinding(bindingId)
+	if err != nil {
+		handleDBReadError(err, w)
+		return
+	}
+
+	if serviceBinding != nil {
+		handleServiceBindingAlreadyExists(bindingId, w)
+		return
+	}
+	log.Debugf("Deployment name for instance:%s is %s", instanceId, serviceInstance.DeploymentName)
+
+	isProvisionComplete, err := s.isProvisionComplete(serviceInstance)
+	if err != nil {
+		handleBoshConnectError(err, w)
+		return
+	}
+
+	if !isProvisionComplete {
+		handleServiceInstanceInflight(instanceId, w)
+		return
+	}
+
+	vmsIps, err := s.boshClient.GetVmIps(serviceInstance.DeploymentName)
+	if err != nil {
+		log.Error("Error in getting VM details", err)
+		handleInternalServerError(err, w)
+		return
+	}
+
+	serviceBinding = &db.ServiceBinding{
+		InstanceId: instanceId,
+		BindingId:  bindingId,
+	}
+
+	err = s.serviceBindingRepo.UpsertBinding(*serviceBinding)
+	if err != nil {
+		handleDBSaveError(err, w)
+		return
+	}
+
+	s.writeBindingResponse(vmsIps, w)
+}
+
+func (s *slHandler) writeBindingResponse(vmsIps map[string][]string, w http.ResponseWriter) {
+	peerIps := vmsIps["peer"]
+
+	peerEndpoints := make([]string, 0)
+
+	for _, peerIp := range peerIps {
+		peerEndpoints = append(peerEndpoints, fmt.Sprintf("%s:5000", peerIp))
+	}
+
+	bindCredentials := schema.BindCredentials{
+		Credentials: schema.BlockChainCredentials{
+			PeerEndpoints: peerEndpoints,
+		},
+	}
+	log.Debugf("Created binding crendentials:%#v", bindCredentials)
+
+	w.WriteHeader(http.StatusCreated)
+	encoder := json.NewEncoder(w)
+	encoder.Encode(bindCredentials)
 }
 
 func (s *slHandler) isAsyncRequest(w http.ResponseWriter, r *http.Request) bool {
