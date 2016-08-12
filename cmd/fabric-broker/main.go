@@ -7,8 +7,11 @@ import (
 	"os"
 
 	"github.com/atulkc/fabric-service-broker/bosh"
+	"github.com/atulkc/fabric-service-broker/db"
 	"github.com/atulkc/fabric-service-broker/db/inmemory"
+	"github.com/atulkc/fabric-service-broker/db/postgres"
 	"github.com/atulkc/fabric-service-broker/handlers"
+	"github.com/cloudfoundry-community/go-cfenv"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
 
@@ -58,58 +61,51 @@ var boshNetworks = flag.String(
 	"Comma separated list of network names configured in cloud config",
 )
 
-// func setupDB() {
-
-// 	db, err := gorm.Open("postgres", "host=localhost user=postgres dbname=fabric_broker sslmode=disable password=postgres")
-// 	if err != nil {
-// 		log.Error("got a freaking error", err)
-// 	}
-
-// 	db.AutoMigrate(&dbmodels.ServiceInstance{})
-// instance := dbmodels.ServiceInstance{
-// 	BaseModel:      dbmodels.BaseModel{Id: "some-guid"},
-// 	DeploymentName: "deployment-name",
-// }
-
-// instance2 := dbmodels.ServiceInstance{
-// 	BaseModel:      dbmodels.BaseModel{Id: "other-guid"},
-// 	DeploymentName: "deployment-name",
-// }
-// db.Create(&instance)
-// db.Create(&instance2)
-// instance.NetworkName = "updated_network_name"
-
-// db.Save(&instance)
-
-// existingInstance := dbmodels.ServiceInstance{}
-// db.Where("id =?", "crap-guid").First(&existingInstance)
-// if existingInstance.Id == "crap-guid" {
-// 	log.Debugf("Found the record:%#v", existingInstance)
-// } else {
-// 	log.Debugf("No record found with %s id: %#v", "crap-guid", existingInstance)
-// }
-// db.Where("id =?", "some-guid").First(&existingInstance)
-// if existingInstance.Id == "some-guid" {
-// 	log.Debugf("Found the record:%#v", existingInstance)
-// } else {
-// 	log.Debugf("No record found with %s id", "some-guid")
-// }
-// }
+var dbUrl = flag.String(
+	"dbUrl",
+	os.Getenv("DB_CONNECTION_STRING"),
+	"Url for DB in DB specific format. E.g. for postgres it will be postgres://__username__:__password__@__hostname__:__port__/__database__",
+)
 
 func main() {
 	flag.Parse()
 	log.Debug("Starting fabric service broker")
 
-	// setupDB()
+	connectionString := ""
+	if os.Getenv("VCAP_APPLICATION") != "" {
+		appEnv, err := cfenv.Current()
+		if err != nil {
+			log.Error("Could not read CF App environment", err)
+			os.Exit(1)
+		}
+		log.Debugf("Instance index is :%d", appEnv.Index)
+		//TODO: Get connection string from VCAP_SERVICES
+	} else {
+		log.Info("Not running as CF App")
+	}
+
+	var repo db.ModelsRepo
+	if connectionString == "" {
+		log.Info("Connection string not available from VCAP_SERVICES")
+		if *dbUrl == "" {
+			log.Info("No db url specified as CLI parameter, using inmemory DB")
+			repo = inmemory.Get()
+		} else {
+			log.Info("DB Url specified as CLI parameter, using postgres repo")
+			repo = getPostgresRepo(*dbUrl)
+		}
+	} else {
+		log.Info("Connection string available from VCAP_SERVICES, using postgres repo")
+		repo = getPostgresRepo(connectionString)
+	}
 
 	boshDetails := getBoshDetails()
 	err := boshDetails.Validate()
 	if err != nil {
 		log.Error("Environment not setup for bosh director use", err)
-		os.Exit(1)
+		os.Exit(2)
 	}
 
-	repo := inmemory.Get()
 	boshClient := bosh.NewBoshHttpClient(boshDetails)
 	slHandler := handlers.NewServiceLifecycleHandler(repo, boshClient, boshDetails)
 
@@ -139,4 +135,13 @@ func getBoshDetails() *bosh.Details {
 		*boshNetworks,
 		*boshDirectorUrl,
 	)
+}
+
+func getPostgresRepo(uri string) db.ModelsRepo {
+	repo, err := postgres.New(*dbUrl, true)
+	if err != nil {
+		log.Error("Error opening DB connection", err)
+		os.Exit(1)
+	}
+	return repo
 }

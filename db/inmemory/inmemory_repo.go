@@ -23,6 +23,10 @@ func init() {
 	}
 }
 
+// Not a thread safe implementation. It is expected that caller does required
+// locking before invoking any methods.
+// Could be changed to be thread safe but will be handled in bigger context
+// of how concurrency is handled for multiple instances of server.
 func Get() *inMemoryDb {
 	return inMemoryDbInstance
 }

@@ -1,9 +1,10 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
 
-	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
+	"github.com/atulkc/fabric-service-broker/db/models"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/op/go-logging"
@@ -11,33 +12,46 @@ import (
 
 var log = logging.MustGetLogger("postgres")
 
+// type Credentials struct {
+// 	Dbname   string `json:"dbname"`
+// 	Hostname string `json:"hostname"`
+// 	Password string `json:"password"`
+// 	Username string `json:"username"`
+// 	Port     int    `json:"port"`
+// 	Uri      string `json:"uri"`
+// }
+
+// func NewCredentials(uri string) (Credentials, error) {
+// }
+
 type postgresDb struct {
 	db *gorm.DB
 }
 
-func New(host string, port int, dbName, user, secret string, sslDisabled bool) (*postgresDb, error) {
-	sslMode := "require"
-	if sslDisabled {
-		sslMode = "disable"
-	}
-
-	db, err := gorm.Open("postgres", fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=%s",
-		host, port, dbName, user, secret, sslMode))
+// Not a thread safe implementation. It is expected that caller does required
+// locking before invoking any methods.
+// Could be changed to be thread safe but will be handled in bigger context
+// of how concurrency is handled for multiple instances of server.
+func New(uri string, migrate bool) (*postgresDb, error) {
+	db, err := gorm.Open("postgres", uri)
 	if err != nil {
 		log.Error("Error connecting to Database", err)
 		return nil, err
 	}
 
-	db.AutoMigrate(&dbmodels.ServiceInstance{})
-	db.AutoMigrate(&dbmodels.ServiceBinding{})
+	if migrate {
+		log.Info("Performing auto migration")
+		db.AutoMigrate(&models.ServiceInstance{})
+		db.AutoMigrate(&models.ServiceBinding{})
+	}
 
 	return &postgresDb{
 		db: db,
 	}, nil
 }
 
-func (d *postgresDb) UpsertServiceInstance(serviceInstance dbmodels.ServiceInstance) error {
-	log.Infof("UpsertServiceInstance: %s", serviceInstance.Id)
+func (d *postgresDb) CreateServiceInstance(serviceInstance models.ServiceInstance) error {
+	log.Infof("CreateServiceInstance: %s", serviceInstance.Id)
 	log.Debugf("Body: %#v", serviceInstance)
 
 	err := serviceInstance.Validate()
@@ -57,22 +71,45 @@ func (d *postgresDb) UpsertServiceInstance(serviceInstance dbmodels.ServiceInsta
 			return err
 		}
 	} else {
-		// update
-		err = d.db.Save(&serviceInstance).Error
-		if err != nil {
-			return err
-		}
+		return errors.New(fmt.Sprintf("Service instance: %s already exists", serviceInstance.Id))
 	}
 
 	return nil
 }
 
-func (d *postgresDb) FindServiceInstance(serviceInstanceId string) (*dbmodels.ServiceInstance, error) {
+func (d *postgresDb) UpdateServiceInstance(serviceInstance models.ServiceInstance) error {
+	log.Infof("UpdateServiceInstance: %s", serviceInstance.Id)
+	log.Debugf("Body: %#v", serviceInstance)
+
+	err := serviceInstance.Validate()
+	if err != nil {
+		return err
+	}
+
+	existingInstance, err := d.FindServiceInstance(serviceInstance.Id)
+	if err != nil {
+		return err
+	}
+
+	if existingInstance != nil {
+		// update
+		err = d.db.Save(&serviceInstance).Error
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New(fmt.Sprintf("Service instance: %s does not exist", serviceInstance.Id))
+	}
+
+	return nil
+}
+
+func (d *postgresDb) FindServiceInstance(serviceInstanceId string) (*models.ServiceInstance, error) {
 	log.Infof("FindServiceInstance: %s", serviceInstanceId)
 
-	existingInstance := dbmodels.ServiceInstance{}
+	existingInstance := models.ServiceInstance{}
 	err := d.db.Where("id =?", serviceInstanceId).First(&existingInstance).Error
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
@@ -84,14 +121,14 @@ func (d *postgresDb) FindServiceInstance(serviceInstanceId string) (*dbmodels.Se
 	return &existingInstance, nil
 }
 
-func (d *postgresDb) ListServiceInstances() ([]dbmodels.ServiceInstance, error) {
+func (d *postgresDb) ListServiceInstances() ([]models.ServiceInstance, error) {
 	log.Infof("ListServiceInstances")
-	list := make([]dbmodels.ServiceInstance, 0)
+	list := make([]models.ServiceInstance, 0)
 	err := d.db.Find(&list).Error
 	return list, err
 }
 
-func (d *postgresDb) DeleteServiceInstance(serviceInstanceId string) (*dbmodels.ServiceInstance, error) {
+func (d *postgresDb) DeleteServiceInstance(serviceInstanceId string) (*models.ServiceInstance, error) {
 	log.Infof("DeleteServiceInstance: %s", serviceInstanceId)
 
 	existingInstance, err := d.FindServiceInstance(serviceInstanceId)
@@ -109,38 +146,24 @@ func (d *postgresDb) DeleteServiceInstance(serviceInstanceId string) (*dbmodels.
 	return existingInstance, nil
 }
 
-func (d *postgresDb) AssociatedServiceBindings(instanceId string) (dbmodels.ServiceBindings, error) {
+func (d *postgresDb) AssociatedServiceBindings(instanceId string) (models.ServiceBindings, error) {
 	log.Infof("AssociatedServiceBindings")
 
-	serviceBindings := dbmodels.ServiceBindings{}
+	serviceBindings := models.ServiceBindings{}
 
 	err := d.db.Where("service_instance_id =?", instanceId).Find(&serviceBindings).Error
 	return serviceBindings, err
 }
 
-func (d *postgresDb) UpsertServiceBinding(serviceBinding dbmodels.ServiceBinding) error {
-	log.Infof("UpsertServiceBinding: %s", serviceBinding.Id)
-	log.Debugf("Body: %#v", serviceBinding)
-
-	err := serviceBinding.Validate()
-	if err != nil {
-		return err
-	}
-
-	d.serviceBindingRepo[serviceBinding.Id] = serviceBinding
-	bindings, found := d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId]
-	if !found {
-		bindings = dbmodels.ServiceBindings{}
-	}
-	bindings = append(bindings, serviceBinding)
-	d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId] = bindings
-	return nil
-}
-
-func (d *postgresDb) FindServiceBinding(bindingId string) (*dbmodels.ServiceBinding, error) {
+func (d *postgresDb) FindServiceBinding(bindingId string) (*models.ServiceBinding, error) {
 	log.Infof("FindServiceBinding: %s", bindingId)
-	serviceBinding, found := d.serviceBindingRepo[bindingId]
-	if !found {
+	serviceBinding := models.ServiceBinding{}
+	err := d.db.Where("id =?", bindingId).First(&serviceBinding).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	if serviceBinding.Id != bindingId {
 		log.Debugf("No record with key %s found", bindingId)
 		return nil, nil
 	}
@@ -148,29 +171,73 @@ func (d *postgresDb) FindServiceBinding(bindingId string) (*dbmodels.ServiceBind
 	return &serviceBinding, nil
 }
 
-func (d *postgresDb) DeleteServiceBinding(bindingId string) (*dbmodels.ServiceBinding, error) {
+func (d *postgresDb) CreateServiceBinding(serviceBinding models.ServiceBinding) error {
+	log.Infof("CreateServiceBinding: %s", serviceBinding.Id)
+	log.Debugf("Body: %#v", serviceBinding)
+
+	err := serviceBinding.Validate()
+	if err != nil {
+		return err
+	}
+
+	existingBinding, err := d.FindServiceBinding(serviceBinding.Id)
+	if err != nil {
+		return err
+	}
+
+	if existingBinding == nil {
+		// create
+		err = d.db.Create(&serviceBinding).Error
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New(fmt.Sprintf("Service binding: %s already exists", serviceBinding.Id))
+	}
+
+	return nil
+}
+
+func (d *postgresDb) UpdateServiceBinding(serviceBinding models.ServiceBinding) error {
+	log.Infof("UpdateServiceBinding: %s", serviceBinding.Id)
+	log.Debugf("Body: %#v", serviceBinding)
+
+	err := serviceBinding.Validate()
+	if err != nil {
+		return err
+	}
+
+	existingBinding, err := d.FindServiceBinding(serviceBinding.Id)
+	if err != nil {
+		return err
+	}
+
+	if existingBinding != nil {
+		// update
+		err = d.db.Save(&serviceBinding).Error
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New(fmt.Sprintf("Service binding: %s does not exist", serviceBinding.Id))
+	}
+
+	return nil
+}
+
+func (d *postgresDb) DeleteServiceBinding(bindingId string) (*models.ServiceBinding, error) {
 	log.Infof("DeleteServiceBinding: %s", bindingId)
-	serviceBinding, found := d.serviceBindingRepo[bindingId]
-	if !found {
-		log.Debugf("No record with key %s found", bindingId)
+	existingBinding, err := d.FindServiceBinding(bindingId)
+	if err != nil {
+		return nil, err
 	}
 
-	delete(d.serviceBindingRepo, bindingId)
-
-	bindings, found := d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId]
-	if found {
-		newBindings := dbmodels.ServiceBindings{}
-		for _, binding := range bindings {
-			if binding.Id != bindingId {
-				newBindings = append(newBindings, binding)
-			}
-		}
-		if len(newBindings) == 0 {
-			delete(d.serviceInstanceBindingMap, serviceBinding.ServiceInstanceId)
-		} else {
-			d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId] = newBindings
+	if existingBinding != nil {
+		err = d.db.Delete(existingBinding).Error
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return &serviceBinding, nil
+	return existingBinding, nil
 }
