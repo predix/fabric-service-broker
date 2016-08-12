@@ -1,9 +1,9 @@
-package db_test
+package models_test
 
 import (
 	"testing"
 
-	"github.com/atulkc/fabric-service-broker/db"
+	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
 
 	. "gopkg.in/go-playground/assert.v1"
 )
@@ -16,8 +16,8 @@ const (
 )
 
 func TestServiceInstance_Validate(t *testing.T) {
-	serviceInstance := &db.ServiceInstance{
-		InstanceId:          serviceInstanceId,
+	serviceInstance := &dbmodels.ServiceInstance{
+		BaseModel:           dbmodels.BaseModel{Id: serviceInstanceId},
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: blockChainNetworkId,

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/atulkc/fabric-service-broker/db"
+	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
 	sberrors "github.com/atulkc/fabric-service-broker/errors"
 	"github.com/atulkc/fabric-service-broker/models"
 	"github.com/atulkc/fabric-service-broker/util"
@@ -29,23 +30,21 @@ var asyncResponse = `
 `
 
 type slHandler struct {
-	boshDetails         *models.BoshDetails
-	serviceInstanceRepo db.ServiceInstanceRepo
-	serviceBindingRepo  db.ServiceBindingRepo
-	availableNetworks   map[string]struct{}
-	boshClient          util.BoshClient
-	lock                *sync.Mutex
+	boshDetails       *models.BoshDetails
+	modelsRepo        db.ModelsRepo
+	availableNetworks map[string]struct{}
+	boshClient        util.BoshClient
+	lock              *sync.Mutex
 }
 
-func NewServiceLifecycleHandler(siRepo db.ServiceInstanceRepo, sbRepo db.ServiceBindingRepo, boshClient util.BoshClient, boshDetails *models.BoshDetails) ServiceLifecycleHandler {
+func NewServiceLifecycleHandler(repo db.ModelsRepo, boshClient util.BoshClient, boshDetails *models.BoshDetails) ServiceLifecycleHandler {
 
 	s := &slHandler{
-		boshDetails:         boshDetails,
-		serviceInstanceRepo: siRepo,
-		serviceBindingRepo:  sbRepo,
-		boshClient:          boshClient,
-		availableNetworks:   make(map[string]struct{}),
-		lock:                &sync.Mutex{},
+		boshDetails:       boshDetails,
+		modelsRepo:        repo,
+		boshClient:        boshClient,
+		availableNetworks: make(map[string]struct{}),
+		lock:              &sync.Mutex{},
 	}
 
 	s.RefreshAvailableNetworks()
@@ -66,7 +65,7 @@ func (s *slHandler) RefreshAvailableNetworks() {
 		s.availableNetworks[networkName] = struct{}{}
 	}
 
-	serviceInstances, err := s.serviceInstanceRepo.List()
+	serviceInstances, err := s.modelsRepo.ListServiceInstances()
 	if err != nil {
 		log.Error("Unable to fetch service instances from db", err)
 		return
@@ -89,7 +88,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingServiceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	existingServiceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -126,15 +125,15 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceInstance := db.ServiceInstance{
-		InstanceId:          instanceId,
+	serviceInstance := dbmodels.ServiceInstance{
+		BaseModel:           dbmodels.BaseModel{Id: instanceId},
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: instanceId,
 		ProvisionTaskId:     strconv.Itoa(task.Id),
 		DeprovisionTaskId:   "",
 	}
-	err = s.serviceInstanceRepo.Upsert(serviceInstance)
+	err = s.modelsRepo.UpsertServiceInstance(serviceInstance)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -159,7 +158,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	instanceId := vars["instanceId"]
-	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	serviceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -179,7 +178,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bindings, err := s.serviceInstanceRepo.GetBindings(instanceId)
+	bindings, err := s.modelsRepo.AssociatedServiceBindings(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -199,7 +198,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 
 	serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
 
-	err = s.serviceInstanceRepo.Upsert(*serviceInstance)
+	err = s.modelsRepo.UpsertServiceInstance(*serviceInstance)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -221,7 +220,7 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	instanceId := vars["instanceId"]
-	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	serviceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -250,7 +249,7 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 		log.Info("Delete operation succeeded. Removing entry from DB")
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		_, err := s.serviceInstanceRepo.Delete(serviceInstance.InstanceId)
+		_, err := s.modelsRepo.DeleteServiceInstance(serviceInstance.Id)
 		if err != nil {
 			handleDBDeleteError(err, w)
 			return
@@ -273,7 +272,7 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	instanceId := vars["instanceId"]
 	bindingId := vars["bindingId"]
 
-	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	serviceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -283,7 +282,7 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceBinding, err := s.serviceBindingRepo.FindBinding(bindingId)
+	serviceBinding, err := s.modelsRepo.FindServiceBinding(bindingId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -313,12 +312,12 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceBinding = &db.ServiceBinding{
-		InstanceId: instanceId,
-		BindingId:  bindingId,
+	serviceBinding = &dbmodels.ServiceBinding{
+		BaseModel:         dbmodels.BaseModel{Id: bindingId},
+		ServiceInstanceId: instanceId,
 	}
 
-	err = s.serviceBindingRepo.UpsertBinding(*serviceBinding)
+	err = s.modelsRepo.UpsertServiceBinding(*serviceBinding)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -337,7 +336,7 @@ func (s *slHandler) Unbind(w http.ResponseWriter, r *http.Request) {
 	instanceId := vars["instanceId"]
 	bindingId := vars["bindingId"]
 
-	serviceInstance, err := s.serviceInstanceRepo.Find(instanceId)
+	serviceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -347,7 +346,7 @@ func (s *slHandler) Unbind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceBinding, err := s.serviceBindingRepo.FindBinding(bindingId)
+	serviceBinding, err := s.modelsRepo.FindServiceBinding(bindingId)
 	if err != nil {
 		handleDBReadError(err, w)
 		return
@@ -359,7 +358,7 @@ func (s *slHandler) Unbind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debugf("Deleting binding :%s from DB", bindingId)
-	_, err = s.serviceBindingRepo.DeleteBinding(bindingId)
+	_, err = s.modelsRepo.DeleteServiceBinding(bindingId)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -401,7 +400,7 @@ func (s *slHandler) isAsyncRequest(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
-func (s *slHandler) isProvisionComplete(serviceInstance *db.ServiceInstance) (bool, error) {
+func (s *slHandler) isProvisionComplete(serviceInstance *dbmodels.ServiceInstance) (bool, error) {
 	task, err := s.boshClient.GetTask(serviceInstance.ProvisionTaskId)
 	if err != nil {
 		return false, err
