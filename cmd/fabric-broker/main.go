@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/atulkc/fabric-service-broker/db"
+	"github.com/atulkc/fabric-service-broker/bosh"
+	"github.com/atulkc/fabric-service-broker/db/inmemory"
 	"github.com/atulkc/fabric-service-broker/handlers"
-	"github.com/atulkc/fabric-service-broker/models"
-	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
+
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 var log = logging.MustGetLogger("fabric-sb")
@@ -57,9 +58,49 @@ var boshNetworks = flag.String(
 	"Comma separated list of network names configured in cloud config",
 )
 
+// func setupDB() {
+
+// 	db, err := gorm.Open("postgres", "host=localhost user=postgres dbname=fabric_broker sslmode=disable password=postgres")
+// 	if err != nil {
+// 		log.Error("got a freaking error", err)
+// 	}
+
+// 	db.AutoMigrate(&dbmodels.ServiceInstance{})
+// instance := dbmodels.ServiceInstance{
+// 	BaseModel:      dbmodels.BaseModel{Id: "some-guid"},
+// 	DeploymentName: "deployment-name",
+// }
+
+// instance2 := dbmodels.ServiceInstance{
+// 	BaseModel:      dbmodels.BaseModel{Id: "other-guid"},
+// 	DeploymentName: "deployment-name",
+// }
+// db.Create(&instance)
+// db.Create(&instance2)
+// instance.NetworkName = "updated_network_name"
+
+// db.Save(&instance)
+
+// existingInstance := dbmodels.ServiceInstance{}
+// db.Where("id =?", "crap-guid").First(&existingInstance)
+// if existingInstance.Id == "crap-guid" {
+// 	log.Debugf("Found the record:%#v", existingInstance)
+// } else {
+// 	log.Debugf("No record found with %s id: %#v", "crap-guid", existingInstance)
+// }
+// db.Where("id =?", "some-guid").First(&existingInstance)
+// if existingInstance.Id == "some-guid" {
+// 	log.Debugf("Found the record:%#v", existingInstance)
+// } else {
+// 	log.Debugf("No record found with %s id", "some-guid")
+// }
+// }
+
 func main() {
 	flag.Parse()
 	log.Debug("Starting fabric service broker")
+
+	// setupDB()
 
 	boshDetails := getBoshDetails()
 	err := boshDetails.Validate()
@@ -68,9 +109,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	repo := db.GetInMemoryDB()
-	boshClient := util.NewBoshHttpClient(boshDetails)
-	slHandler := handlers.NewServiceLifecycleHandler(repo, repo, boshClient, boshDetails)
+	repo := inmemory.Get()
+	boshClient := bosh.NewBoshHttpClient(boshDetails)
+	slHandler := handlers.NewServiceLifecycleHandler(repo, boshClient, boshDetails)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/v2/catalog", handlers.CatalogHandler)
@@ -89,9 +130,9 @@ func main() {
 	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
 }
 
-func getBoshDetails() *models.BoshDetails {
+func getBoshDetails() *bosh.Details {
 	log.Info("Getting Bosh details from environment")
-	return models.NewBoshDetails(
+	return bosh.NewDetails(
 		*boshStemcellName,
 		*boshDirectorUuid,
 		*boshVmType,
