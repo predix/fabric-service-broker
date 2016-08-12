@@ -6,10 +6,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/atulkc/fabric-service-broker/bosh"
 	"github.com/atulkc/fabric-service-broker/db/inmemory"
 	"github.com/atulkc/fabric-service-broker/handlers"
-	"github.com/atulkc/fabric-service-broker/models"
-	"github.com/atulkc/fabric-service-broker/util"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
 
@@ -111,7 +110,7 @@ func main() {
 	}
 
 	repo := inmemory.Get()
-	boshClient := util.NewBoshHttpClient(boshDetails)
+	boshClient := bosh.NewBoshHttpClient(boshDetails)
 	slHandler := handlers.NewServiceLifecycleHandler(repo, boshClient, boshDetails)
 
 	r := mux.NewRouter()
@@ -131,9 +130,9 @@ func main() {
 	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
 }
 
-func getBoshDetails() *models.BoshDetails {
+func getBoshDetails() *bosh.Details {
 	log.Info("Getting Bosh details from environment")
-	return models.NewBoshDetails(
+	return bosh.NewDetails(
 		*boshStemcellName,
 		*boshDirectorUuid,
 		*boshVmType,

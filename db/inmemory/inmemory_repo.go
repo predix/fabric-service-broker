@@ -1,14 +1,14 @@
 package inmemory
 
 import (
-	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
+	"github.com/atulkc/fabric-service-broker/db/models"
 	"github.com/op/go-logging"
 )
 
 type inMemoryDb struct {
-	serviceInstanceRepo       map[string]dbmodels.ServiceInstance
-	serviceBindingRepo        map[string]dbmodels.ServiceBinding
-	serviceInstanceBindingMap map[string]dbmodels.ServiceBindings
+	serviceInstanceRepo       map[string]models.ServiceInstance
+	serviceBindingRepo        map[string]models.ServiceBinding
+	serviceInstanceBindingMap map[string]models.ServiceBindings
 }
 
 var log = logging.MustGetLogger("inmemory")
@@ -17,9 +17,9 @@ var inMemoryDbInstance *inMemoryDb
 
 func init() {
 	inMemoryDbInstance = &inMemoryDb{
-		serviceInstanceRepo:       make(map[string]dbmodels.ServiceInstance),
-		serviceBindingRepo:        make(map[string]dbmodels.ServiceBinding),
-		serviceInstanceBindingMap: make(map[string]dbmodels.ServiceBindings),
+		serviceInstanceRepo:       make(map[string]models.ServiceInstance),
+		serviceBindingRepo:        make(map[string]models.ServiceBinding),
+		serviceInstanceBindingMap: make(map[string]models.ServiceBindings),
 	}
 }
 
@@ -27,8 +27,17 @@ func Get() *inMemoryDb {
 	return inMemoryDbInstance
 }
 
-func (d *inMemoryDb) UpsertServiceInstance(serviceInstance dbmodels.ServiceInstance) error {
-	log.Infof("UpsertServiceInstance: %s", serviceInstance.Id)
+func (d *inMemoryDb) CreateServiceInstance(serviceInstance models.ServiceInstance) error {
+	log.Infof("CreateServiceInstance: %s", serviceInstance.Id)
+	return d.setServiceInstance(serviceInstance)
+}
+
+func (d *inMemoryDb) UpdateServiceInstance(serviceInstance models.ServiceInstance) error {
+	log.Infof("UpdateServiceInstance: %s", serviceInstance.Id)
+	return d.setServiceInstance(serviceInstance)
+}
+
+func (d *inMemoryDb) setServiceInstance(serviceInstance models.ServiceInstance) error {
 	log.Debugf("Body: %#v", serviceInstance)
 
 	err := serviceInstance.Validate()
@@ -40,7 +49,7 @@ func (d *inMemoryDb) UpsertServiceInstance(serviceInstance dbmodels.ServiceInsta
 	return nil
 }
 
-func (d *inMemoryDb) FindServiceInstance(serviceInstanceId string) (*dbmodels.ServiceInstance, error) {
+func (d *inMemoryDb) FindServiceInstance(serviceInstanceId string) (*models.ServiceInstance, error) {
 	log.Infof("FindServiceInstance: %s", serviceInstanceId)
 	serviceInstance, found := d.serviceInstanceRepo[serviceInstanceId]
 	if !found {
@@ -51,10 +60,10 @@ func (d *inMemoryDb) FindServiceInstance(serviceInstanceId string) (*dbmodels.Se
 	return &serviceInstance, nil
 }
 
-func (d *inMemoryDb) ListServiceInstances() ([]dbmodels.ServiceInstance, error) {
+func (d *inMemoryDb) ListServiceInstances() ([]models.ServiceInstance, error) {
 	log.Infof("ListServiceInstances")
 
-	list := make([]dbmodels.ServiceInstance, len(d.serviceInstanceRepo))
+	list := make([]models.ServiceInstance, len(d.serviceInstanceRepo))
 	for _, serviceInstance := range d.serviceInstanceRepo {
 		list = append(list, serviceInstance)
 	}
@@ -62,7 +71,7 @@ func (d *inMemoryDb) ListServiceInstances() ([]dbmodels.ServiceInstance, error) 
 	return list, nil
 }
 
-func (d *inMemoryDb) DeleteServiceInstance(serviceInstanceId string) (*dbmodels.ServiceInstance, error) {
+func (d *inMemoryDb) DeleteServiceInstance(serviceInstanceId string) (*models.ServiceInstance, error) {
 	log.Infof("DeleteServiceInstance: %s", serviceInstanceId)
 	serviceInstance, found := d.serviceInstanceRepo[serviceInstanceId]
 	if !found {
@@ -75,13 +84,22 @@ func (d *inMemoryDb) DeleteServiceInstance(serviceInstanceId string) (*dbmodels.
 	return &serviceInstance, nil
 }
 
-func (d *inMemoryDb) AssociatedServiceBindings(instanceId string) (dbmodels.ServiceBindings, error) {
+func (d *inMemoryDb) AssociatedServiceBindings(instanceId string) (models.ServiceBindings, error) {
 	log.Infof("AssociatedServiceBindings")
 	return d.serviceInstanceBindingMap[instanceId], nil
 }
 
-func (d *inMemoryDb) UpsertServiceBinding(serviceBinding dbmodels.ServiceBinding) error {
-	log.Infof("UpsertServiceBinding: %s", serviceBinding.Id)
+func (d *inMemoryDb) CreateServiceBinding(serviceBinding models.ServiceBinding) error {
+	log.Infof("CreateServiceBinding: %s", serviceBinding.Id)
+	return d.setServiceBinding(serviceBinding)
+}
+
+func (d *inMemoryDb) UpdateServiceBinding(serviceBinding models.ServiceBinding) error {
+	log.Infof("UpdateServiceBinding: %s", serviceBinding.Id)
+	return d.setServiceBinding(serviceBinding)
+}
+
+func (d *inMemoryDb) setServiceBinding(serviceBinding models.ServiceBinding) error {
 	log.Debugf("Body: %#v", serviceBinding)
 
 	err := serviceBinding.Validate()
@@ -92,14 +110,14 @@ func (d *inMemoryDb) UpsertServiceBinding(serviceBinding dbmodels.ServiceBinding
 	d.serviceBindingRepo[serviceBinding.Id] = serviceBinding
 	bindings, found := d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId]
 	if !found {
-		bindings = dbmodels.ServiceBindings{}
+		bindings = models.ServiceBindings{}
 	}
 	bindings = append(bindings, serviceBinding)
 	d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId] = bindings
 	return nil
 }
 
-func (d *inMemoryDb) FindServiceBinding(bindingId string) (*dbmodels.ServiceBinding, error) {
+func (d *inMemoryDb) FindServiceBinding(bindingId string) (*models.ServiceBinding, error) {
 	log.Infof("FindServiceBinding: %s", bindingId)
 	serviceBinding, found := d.serviceBindingRepo[bindingId]
 	if !found {
@@ -110,7 +128,7 @@ func (d *inMemoryDb) FindServiceBinding(bindingId string) (*dbmodels.ServiceBind
 	return &serviceBinding, nil
 }
 
-func (d *inMemoryDb) DeleteServiceBinding(bindingId string) (*dbmodels.ServiceBinding, error) {
+func (d *inMemoryDb) DeleteServiceBinding(bindingId string) (*models.ServiceBinding, error) {
 	log.Infof("DeleteServiceBinding: %s", bindingId)
 	serviceBinding, found := d.serviceBindingRepo[bindingId]
 	if !found {
@@ -121,7 +139,7 @@ func (d *inMemoryDb) DeleteServiceBinding(bindingId string) (*dbmodels.ServiceBi
 
 	bindings, found := d.serviceInstanceBindingMap[serviceBinding.ServiceInstanceId]
 	if found {
-		newBindings := dbmodels.ServiceBindings{}
+		newBindings := models.ServiceBindings{}
 		for _, binding := range bindings {
 			if binding.Id != bindingId {
 				newBindings = append(newBindings, binding)

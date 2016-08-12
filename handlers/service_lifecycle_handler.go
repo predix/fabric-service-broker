@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/atulkc/fabric-service-broker/bosh"
 	"github.com/atulkc/fabric-service-broker/db"
-	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
+	"github.com/atulkc/fabric-service-broker/db/models"
 	sberrors "github.com/atulkc/fabric-service-broker/errors"
-	"github.com/atulkc/fabric-service-broker/models"
-	"github.com/atulkc/fabric-service-broker/util"
+	"github.com/atulkc/fabric-service-broker/rest_models"
 	"github.com/gorilla/mux"
 )
 
@@ -30,14 +30,14 @@ var asyncResponse = `
 `
 
 type slHandler struct {
-	boshDetails       *models.BoshDetails
+	boshDetails       *bosh.Details
 	modelsRepo        db.ModelsRepo
 	availableNetworks map[string]struct{}
-	boshClient        util.BoshClient
+	boshClient        bosh.Client
 	lock              *sync.Mutex
 }
 
-func NewServiceLifecycleHandler(repo db.ModelsRepo, boshClient util.BoshClient, boshDetails *models.BoshDetails) ServiceLifecycleHandler {
+func NewServiceLifecycleHandler(repo db.ModelsRepo, boshClient bosh.Client, boshDetails *bosh.Details) ServiceLifecycleHandler {
 
 	s := &slHandler{
 		boshDetails:       boshDetails,
@@ -76,6 +76,14 @@ func (s *slHandler) RefreshAvailableNetworks() {
 	}
 }
 
+// We are locking the mutex for entire operation essentially serializing
+// access to any rest endpoint on this service broker. This can be improved
+// to lock only network name selection using some form of DB locking but for
+// MVP this serialized version should be fine.
+// Another shortcoming of this approach is that this locking is not cluster safe
+// meaning if there are multiple instances of this server running then they dont
+// coordinate with each other in selection of network name. This is also something
+// that we need to improve on past MVP.
 func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -112,7 +120,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 
 	deploymentName := fmt.Sprintf("fabric-%s", instanceId)
 
-	manifest, err := models.NewManifest(deploymentName, networkName, s.boshDetails)
+	manifest, err := bosh.NewManifest(deploymentName, networkName, s.boshDetails)
 	if err != nil {
 		handleManifestGenerationError(err, w)
 		return
@@ -125,15 +133,15 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceInstance := dbmodels.ServiceInstance{
-		BaseModel:           dbmodels.BaseModel{Id: instanceId},
+	serviceInstance := models.ServiceInstance{
+		BaseModel:           models.BaseModel{Id: instanceId},
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: instanceId,
 		ProvisionTaskId:     strconv.Itoa(task.Id),
 		DeprovisionTaskId:   "",
 	}
-	err = s.modelsRepo.UpsertServiceInstance(serviceInstance)
+	err = s.modelsRepo.CreateServiceInstance(serviceInstance)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -198,7 +206,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 
 	serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
 
-	err = s.modelsRepo.UpsertServiceInstance(*serviceInstance)
+	err = s.modelsRepo.UpdateServiceInstance(*serviceInstance)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -238,13 +246,13 @@ func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	operation := models.OpProvision
+	operation := rest_models.OpProvision
 	if serviceInstance.DeprovisionTaskId == taskId[0] {
-		operation = models.OpDeprovision
+		operation = rest_models.OpDeprovision
 	}
 
-	lastOperationResponse := models.GetLastOperationResponse(operation, task.State)
-	if lastOperationResponse.State == models.StateSucceeded &&
+	lastOperationResponse := rest_models.GetLastOperationResponse(operation, task.State)
+	if lastOperationResponse.State == rest_models.StateSucceeded &&
 		taskId[0] == serviceInstance.DeprovisionTaskId {
 		log.Info("Delete operation succeeded. Removing entry from DB")
 		s.lock.Lock()
@@ -312,12 +320,12 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceBinding = &dbmodels.ServiceBinding{
-		BaseModel:         dbmodels.BaseModel{Id: bindingId},
+	serviceBinding = &models.ServiceBinding{
+		BaseModel:         models.BaseModel{Id: bindingId},
 		ServiceInstanceId: instanceId,
 	}
 
-	err = s.modelsRepo.UpsertServiceBinding(*serviceBinding)
+	err = s.modelsRepo.CreateServiceBinding(*serviceBinding)
 	if err != nil {
 		handleDBSaveError(err, w)
 		return
@@ -376,8 +384,8 @@ func (s *slHandler) writeBindingResponse(vmsIps map[string][]string, w http.Resp
 		peerEndpoints = append(peerEndpoints, fmt.Sprintf("%s:5000", peerIp))
 	}
 
-	bindCredentials := models.BindCredentials{
-		Credentials: models.BlockChainCredentials{
+	bindCredentials := rest_models.BindCredentials{
+		Credentials: rest_models.BlockChainCredentials{
 			PeerEndpoints: peerEndpoints,
 		},
 	}
@@ -400,12 +408,12 @@ func (s *slHandler) isAsyncRequest(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
-func (s *slHandler) isProvisionComplete(serviceInstance *dbmodels.ServiceInstance) (bool, error) {
+func (s *slHandler) isProvisionComplete(serviceInstance *models.ServiceInstance) (bool, error) {
 	task, err := s.boshClient.GetTask(serviceInstance.ProvisionTaskId)
 	if err != nil {
 		return false, err
 	}
-	if task.State != models.BoshStateDone {
+	if task.State != bosh.BoshStateDone {
 		return false, nil
 	}
 	return true, nil
