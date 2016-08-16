@@ -4,6 +4,10 @@ import "errors"
 
 type ServiceInstance struct {
 	BaseModel
+	ServiceId           string
+	PlanId              string
+	OrganizationGuid    string
+	SpaceGuid           string
 	DeploymentName      string
 	NetworkName         string
 	BlockchainNetworkId string
@@ -23,6 +27,18 @@ func (s ServiceInstance) Validate() error {
 	}
 	if s.BlockchainNetworkId == "" {
 		return errors.New("BlockchainNetworkId cannot be empty")
+	}
+	if s.ServiceId == "" {
+		return errors.New("ServiceId cannot be empty")
+	}
+	if s.PlanId == "" {
+		return errors.New("PlanId cannot be empty")
+	}
+	if s.OrganizationGuid == "" {
+		return errors.New("OrganizationGuid cannot be empty")
+	}
+	if s.SpaceGuid == "" {
+		return errors.New("SpaceGuid cannot be empty")
 	}
 	return nil
 }

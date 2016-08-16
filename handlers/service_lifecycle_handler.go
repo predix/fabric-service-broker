@@ -96,6 +96,19 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	decoder := json.NewDecoder(r.Body)
+
+	var serviceProvisionRequest rest_models.ServiceProvisionRequest
+	err := decoder.Decode(&serviceProvisionRequest)
+	if err != nil {
+		handleBadRequest(err.Error(), w)
+		return
+	}
+
+	if !s.isValidServiceIdAndPlanId(serviceProvisionRequest.ServiceId, serviceProvisionRequest.PlanId, w) {
+		return
+	}
+
 	existingServiceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
@@ -135,6 +148,10 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 
 	serviceInstance := models.ServiceInstance{
 		BaseModel:           models.BaseModel{Id: instanceId},
+		ServiceId:           serviceProvisionRequest.ServiceId,
+		PlanId:              serviceProvisionRequest.PlanId,
+		OrganizationGuid:    serviceProvisionRequest.OrganizationGuid,
+		SpaceGuid:           serviceProvisionRequest.SpaceGuid,
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: instanceId,
@@ -280,6 +297,19 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	instanceId := vars["instanceId"]
 	bindingId := vars["bindingId"]
 
+	decoder := json.NewDecoder(r.Body)
+
+	var serviceBindingRequest rest_models.ServiceBindingRequest
+	err := decoder.Decode(&serviceBindingRequest)
+	if err != nil {
+		handleBadRequest(err.Error(), w)
+		return
+	}
+
+	if !s.isValidServiceIdAndPlanId(serviceBindingRequest.ServiceId, serviceBindingRequest.PlanId, w) {
+		return
+	}
+
 	serviceInstance, err := s.modelsRepo.FindServiceInstance(instanceId)
 	if err != nil {
 		handleDBReadError(err, w)
@@ -323,6 +353,7 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	serviceBinding = &models.ServiceBinding{
 		BaseModel:         models.BaseModel{Id: bindingId},
 		ServiceInstanceId: instanceId,
+		AppId:             serviceBindingRequest.AppGuid,
 	}
 
 	err = s.modelsRepo.CreateServiceBinding(*serviceBinding)
@@ -417,4 +448,18 @@ func (s *slHandler) isProvisionComplete(serviceInstance *models.ServiceInstance)
 		return false, nil
 	}
 	return true, nil
+}
+
+func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.ResponseWriter) bool {
+	if serviceId != rest_models.DefaultServiceId {
+		log.Errorf("Invalid service id:%s specified", serviceId)
+		handleBadRequest("Invalid Service Id", w)
+		return false
+	}
+	if planId != rest_models.DefautPlanId {
+		log.Errorf("Invalid plan id:%s specified", planId)
+		handleBadRequest("Invalid Plan Id", w)
+		return false
+	}
+	return true
 }

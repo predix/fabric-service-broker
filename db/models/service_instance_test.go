@@ -13,6 +13,10 @@ const (
 	deploymentName      = "deploymentName"
 	networkName         = "net1"
 	blockChainNetworkId = "blockNetworkId"
+	serviceId           = "service-id"
+	planId              = "plan-id"
+	orgGuid             = "org-guid"
+	spaceGuid           = "space-guid"
 )
 
 func TestServiceInstance_Validate(t *testing.T) {
@@ -21,6 +25,10 @@ func TestServiceInstance_Validate(t *testing.T) {
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: blockChainNetworkId,
+		ServiceId:           serviceId,
+		PlanId:              planId,
+		OrganizationGuid:    orgGuid,
+		SpaceGuid:           spaceGuid,
 	}
 	err := serviceInstance.Validate()
 	Equal(t, err, nil)

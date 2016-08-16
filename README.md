@@ -22,7 +22,12 @@ Once service broker is up and running as described above execute following curl 
 
 ### Provision
 ```
-curl -v localhost:8999/v2/service_instances/2A98FB4C-B774-45BD-9D5B-7C427933F812?accepts_incomplete=true -X PUT
+curl -v localhost:8999/v2/service_instances/2A98FB4C-B774-45BD-9D5B-7C427933F812?accepts_incomplete=true -X PUT -H "Content-Type: application/json" -d '{
+	"organization_guid": "org-guid",
+    "plan_id":           "15175506-D9F6-4CD8-AA1E-8F0AAFB99C07",
+    "service_id":        "05FC7A18-5B52-4701-A475-5995B79DF2AD",
+    "space_guid":        "space-guid"
+}'
 ```
 
 ### Last operation
@@ -33,7 +38,12 @@ curl  localhost:8999/v2/service_instances/2A98FB4C-B774-45BD-9D5B-7C427933F812/l
 
 ### Bind
 ```
-curl -v  localhost:8999/v2/service_instances/2A98FB4C-B774-45BD-9D5B-7C427933F812/service_bindings/37E1D618-8EBC-4258-99D8-971E67CAAA64 -X PUT
+curl -v  localhost:8999/v2/service_instances/2A98FB4C-B774-45BD-9D5B-7C427933F812/service_bindings/37E1D618-8EBC-4258-99D8-971E67CAAA64 -X PUT -H "Content-Type: application/json" -d '
+{
+	"plan_id":      "15175506-D9F6-4CD8-AA1E-8F0AAFB99C07",
+    "service_id":   "05FC7A18-5B52-4701-A475-5995B79DF2AD",
+    "app_guid":     "app-guid"
+}'
 ```
 
 ### Unbind
