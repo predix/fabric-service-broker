@@ -5,6 +5,10 @@ const (
 	DefautPlanId     = "15175506-D9F6-4CD8-AA1E-8F0AAFB99C07"
 )
 
+type ServiceCatalog struct {
+	Services Services `json:"services"`
+}
+
 type Services []Service
 
 type Service struct {
