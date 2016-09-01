@@ -14,7 +14,7 @@ This repo is for service broker used to provision/deprovision hyperledger fabric
 
 	```
 	cd $GOPATH/src/github.com/atulkc/fabric-service-broker
-	go run cmd/fabric-broker/main.go --boshStemcellName bosh-warden-boshlite-ubuntu-trusty-go_agent --boshDirectorUuid $(bosh status --uuid) --boshVmType small --boshNetworks "peer, peer1,peer2, peer3"
+	go run cmd/fabric-broker/main.go --boshStemcellName bosh-warden-boshlite-ubuntu-trusty-go_agent --boshDirectorUuid $(bosh status --uuid) --boshVmType small --boshNetworks "peer, peer1,peer2, peer3" --peerDataDir "/var/vcap/data/hyperledger/production" --dockerDataDir "/var/vcap/data/docker"
 	```
 
 ## Testing service broker

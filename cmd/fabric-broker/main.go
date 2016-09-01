@@ -21,12 +21,14 @@ import (
 var log = logging.MustGetLogger("fabric-sb")
 
 const (
-	defaultScheme       = "https"
-	defaultBoshUsername = "admin"
-	defaultBoshPassword = "admin"
-	defaultBoshAddress  = "192.168.50.4"
-	defaultBoshPort     = 25555
-	defaultPort         = "8999"
+	defaultScheme        = "https"
+	defaultBoshUsername  = "admin"
+	defaultBoshPassword  = "admin"
+	defaultBoshAddress   = "192.168.50.4"
+	defaultBoshPort      = 25555
+	defaultPort          = "8999"
+	defaultPeerDataDir   = "/var/vcap/data/hyperledger/production"
+	defaultDockerDataDir = "/var/vcap/data/docker"
 )
 
 var defaultBoshDirectorUrl = fmt.Sprintf("%s://%s:%s@%s:%d", defaultScheme, defaultBoshUsername, defaultBoshPassword, defaultBoshAddress, defaultBoshPort)
@@ -59,6 +61,18 @@ var boshNetworks = flag.String(
 	"boshNetworks",
 	os.Getenv("BOSH_NETWORK_NAMES"),
 	"Comma separated list of network names configured in cloud config",
+)
+
+var peerDataDir = flag.String(
+	"peerDataDir",
+	defaultPeerDataDir,
+	"Data directory used by peer to store data",
+)
+
+var dockerDataDir = flag.String(
+	"dockerDataDir",
+	defaultDockerDataDir,
+	"Data directory used by docker to store data files",
 )
 
 var dbUrl = flag.String(
@@ -134,6 +148,8 @@ func getBoshDetails() *bosh.Details {
 		*boshVmType,
 		*boshNetworks,
 		*boshDirectorUrl,
+		*peerDataDir,
+		*dockerDataDir,
 	)
 }
 

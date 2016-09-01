@@ -11,6 +11,9 @@ type Details struct {
 	NetworkNames    []string
 	Vmtype          string
 	BoshDirectorUrl string
+
+	PeerDataDir   string
+	DockerDataDir string
 }
 
 func (b *Details) Validate() error {
@@ -31,15 +34,23 @@ func (b *Details) Validate() error {
 	if b.BoshDirectorUrl == "" {
 		return errors.New("BoshDirectorUrl cannot be empty")
 	}
+	if b.PeerDataDir == "" {
+		return errors.New("PeerDataDir cannot be empty")
+	}
+	if b.DockerDataDir == "" {
+		return errors.New("DockerDataDir cannot be empty")
+	}
 	return nil
 }
 
-func NewDetails(stemcellName, uuid, vmType, networkNames, boshDirectorUrl string) *Details {
+func NewDetails(stemcellName, uuid, vmType, networkNames, boshDirectorUrl, peerDataDir, dockerDataDir string) *Details {
 	return &Details{
 		StemcellName:    stemcellName,
 		DirectorUUID:    uuid,
 		Vmtype:          vmType,
 		NetworkNames:    strings.Split(strings.Replace(networkNames, " ", "", -1), ","),
 		BoshDirectorUrl: boshDirectorUrl,
+		PeerDataDir:     peerDataDir,
+		DockerDataDir:   dockerDataDir,
 	}
 }

@@ -132,8 +132,9 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Network name selected for this deployment: %s", networkName)
 
 	deploymentName := fmt.Sprintf("fabric-%s", instanceId)
+	permissioned := s.isPermissioned(serviceProvisionRequest.PlanId)
 
-	manifest, err := bosh.NewManifest(deploymentName, networkName, s.boshDetails)
+	manifest, err := bosh.NewManifest(deploymentName, networkName, permissioned, s.boshDetails)
 	if err != nil {
 		handleManifestGenerationError(err, w)
 		return
@@ -456,10 +457,17 @@ func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.R
 		handleBadRequest("Invalid Service Id", w)
 		return false
 	}
-	if planId != rest_models.DefautPlanId {
+	if planId != rest_models.PermissionlessPlanId && planId != rest_models.PermissionedPlanId {
 		log.Errorf("Invalid plan id:%s specified", planId)
 		handleBadRequest("Invalid Plan Id", w)
 		return false
 	}
 	return true
+}
+
+func (s *slHandler) isPermissioned(planId string) bool {
+	if planId == rest_models.PermissionedPlanId {
+		return true
+	}
+	return false
 }
