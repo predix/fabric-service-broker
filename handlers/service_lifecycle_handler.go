@@ -111,7 +111,8 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceProvisionRequest.ServiceId, serviceProvisionRequest.PlanId, w) {
-		log.Info("ServiceId and PlanId invalid. Returning without provisioning.")
+		log.Info("ServiceId or PlanId invalid. Returning without provisioning.")
+		handleBadRequest(err.Error(), w)
 		return
 	}
 
@@ -125,7 +126,6 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	var deploymentName string
 	var taskId int
 	var networkName string
@@ -138,7 +138,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 
 	// Deployment does not exist, create one
 	if (!deploymentExists) {
-		log.Info("Deployment does not existing. Creating one.")
+		log.Info("Deployment does not exist. Creating one.")
 		// Get the first available network
 		for netName, _ := range s.availableNetworks {
 			networkName = netName
@@ -169,7 +169,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		// This is assuming we are adding a new service instance to a shared plan
 		taskId, err = strconv.Atoi(existingInstance.ProvisionTaskId)
 		networkName = existingInstance.NetworkName
-		log.Info("Deployment already exists. Creating service instance binding for shared plan.")
+		log.Info("Deployment already exists. Creating service instance for shared plan.")
 		if (err != nil) {
 			handleInternalServerError(err, w)
 			return
@@ -251,36 +251,39 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 	// If its shared, check that all other service instances have been deleted before deleting the deployment
 
 	shared := s.isShared(serviceInstance.PlanId)
-	var numInstances = s.numInstancesInDeployment(serviceInstance.DeploymentName)
 
-	if (shared && numInstances > 1) {
-		// Do not delete the deployment
-		_, err := s.modelsRepo.DeleteServiceInstance(serviceInstance.Id)
-		if err != nil {
-			handleDBDeleteError(err, w)
+	if (shared) {
+		var numInstances = s.numInstancesInDeployment(serviceInstance.DeploymentName)
+
+		if (numInstances > 1) {
+			// Do not delete the deployment, just delete the db entry
+			_, err := s.modelsRepo.DeleteServiceInstance(serviceInstance.Id)
+			if err != nil {
+				handleDBDeleteError(err, w)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 			return
 		}
-		return
-	} else {
-
-		task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
-		if err != nil {
-			handleInternalServerError(err, w)
-			return
-		}
-
-		serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
-
-		err = s.modelsRepo.UpdateServiceInstance(*serviceInstance)
-		if err != nil {
-			handleDBSaveError(err, w)
-			return
-		}
-		log.Debug("Saved service instance to DB")
-
-		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
 	}
+
+	task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
+	if err != nil {
+		handleInternalServerError(err, w)
+		return
+	}
+
+	serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
+
+	err = s.modelsRepo.UpdateServiceInstance(*serviceInstance)
+	if err != nil {
+		handleDBSaveError(err, w)
+		return
+	}
+	log.Debug("Saved service instance to DB")
+
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
 }
 
 func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
@@ -356,6 +359,8 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceBindingRequest.ServiceId, serviceBindingRequest.PlanId, w) {
+		log.Info("ServiceId or PlanId invalid. Returning without provisioning.")
+		handleBadRequest(err.Error(), w)
 		return
 	}
 
@@ -500,7 +505,6 @@ func (s *slHandler) isProvisionComplete(serviceInstance *models.ServiceInstance)
 }
 
 func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.ResponseWriter) bool {
-
 	var isValid bool
 
 	if serviceId != rest_models.DefaultServiceId {
@@ -511,21 +515,16 @@ func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.R
 
 	switch planId {
 		case rest_models.PermissionlessPlanId, rest_models.PermissionedPlanId, rest_models.SharedPermissionedPlanId, rest_models.SharedPermissionlessPlanId:
-			log.Info("ServiceId and PlanId Valid. Returning true.")
 			isValid = true
 		default:
-			log.Info("Invalid plan id:%s specified", planId)
 			handleBadRequest("Invalid Plan Id", w)
 			isValid = false
 	}
 
-
-	log.Info("Function returning %d here. ", isValid)
 	return isValid
 }
 
 func (s *slHandler) numInstancesInDeployment(deploymentName string) int {
-
 	serviceInstanceList, err := s.modelsRepo.ListServiceInstances()
 	if err != nil {
 		log.Error("Unable to fetch service instances from db", err)
