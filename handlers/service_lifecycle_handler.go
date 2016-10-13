@@ -37,6 +37,11 @@ type slHandler struct {
 	lock              *sync.Mutex
 }
 
+const (
+	sharedPermissionedPlanName = "sharedPermissionedDeployment"
+	sharedPermissionlessPlanName = "sharedPermissionlessDeployment"
+)
+
 func NewServiceLifecycleHandler(repo db.ModelsRepo, boshClient bosh.Client, boshDetails *bosh.Details) ServiceLifecycleHandler {
 
 	s := &slHandler{
@@ -106,6 +111,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceProvisionRequest.ServiceId, serviceProvisionRequest.PlanId, w) {
+		log.Info("ServiceId and PlanId invalid. Returning without provisioning.")
 		return
 	}
 
@@ -119,32 +125,55 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the first available network
+
+	var deploymentName string
+	var taskId int
 	var networkName string
-	for netName, _ := range s.availableNetworks {
-		networkName = netName
-	}
-
-	if networkName == "" {
-		handleOutOfNetworks(w)
-		return
-	}
-	log.Debugf("Network name selected for this deployment: %s", networkName)
-
-	deploymentName := fmt.Sprintf("fabric-%s", instanceId)
+	shared := s.isShared(serviceProvisionRequest.PlanId)
 	permissioned := s.isPermissioned(serviceProvisionRequest.PlanId)
 
-	manifest, err := bosh.NewManifest(deploymentName, networkName, permissioned, s.boshDetails)
-	if err != nil {
-		handleManifestGenerationError(err, w)
-		return
-	}
-	log.Debugf("Manifest generated for deployment")
+	deploymentName = s.getDeploymentName(shared, permissioned, instanceId)
 
-	task, err := s.boshClient.CreateDeployment(*manifest)
-	if err != nil {
-		handleInternalServerError(err, w)
-		return
+	deploymentExists, existingInstance := s.deploymentExists(deploymentName)
+
+	// Deployment does not exist, create one
+	if (!deploymentExists) {
+		log.Info("Deployment does not existing. Creating one.")
+		// Get the first available network
+		for netName, _ := range s.availableNetworks {
+			networkName = netName
+		}
+
+		if networkName == "" {
+			handleOutOfNetworks(w)
+			return
+		}
+		log.Info("Network name selected for this deployment: %s", networkName)
+
+		manifest, err := bosh.NewManifest(deploymentName, networkName, permissioned, s.boshDetails)
+		if err != nil {
+			handleManifestGenerationError(err, w)
+			return
+		}
+
+		log.Debugf("Manifest generated for deployment")
+
+		task, err := s.boshClient.CreateDeployment(*manifest)
+		if err != nil {
+			handleInternalServerError(err, w)
+			return
+		}
+		taskId = task.Id
+	} else {
+		// For pre-existing deployments, ProvisionTaskId gives the taskId obtained during deployment creation.
+		// This is assuming we are adding a new service instance to a shared plan
+		taskId, err = strconv.Atoi(existingInstance.ProvisionTaskId)
+		networkName = existingInstance.NetworkName
+		log.Info("Deployment already exists. Creating service instance binding for shared plan.")
+		if (err != nil) {
+			handleInternalServerError(err, w)
+			return
+		}
 	}
 
 	serviceInstance := models.ServiceInstance{
@@ -156,7 +185,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		DeploymentName:      deploymentName,
 		NetworkName:         networkName,
 		BlockchainNetworkId: instanceId,
-		ProvisionTaskId:     strconv.Itoa(task.Id),
+		ProvisionTaskId:     strconv.Itoa(taskId),
 		DeprovisionTaskId:   "",
 	}
 	err = s.modelsRepo.CreateServiceInstance(serviceInstance)
@@ -164,12 +193,14 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 		handleDBSaveError(err, w)
 		return
 	}
-	log.Debugf("Service instance saved to DB")
+	log.Info("Service instance saved to DB")
+	// shared-block chain : delete gets called multiple times. Is this safe/correct ?
 	delete(s.availableNetworks, networkName)
-	log.Debugf("Network %s deleted from available networks", networkName)
+	log.Info("Network %s deleted from available networks", networkName)
 
 	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
+	w.Write([]byte(fmt.Sprintf(asyncResponse, taskId)))
+
 }
 
 func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
@@ -216,23 +247,40 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Debugf("No bindings for service instance :%d", instanceId)
 
-	task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
-	if err != nil {
-		handleInternalServerError(err, w)
+	// Delete the deployment if its not a shared block chain
+	// If its shared, check that all other service instances have been deleted before deleting the deployment
+
+	shared := s.isShared(serviceInstance.PlanId)
+	var numInstances = s.numInstancesInDeployment(serviceInstance.DeploymentName)
+
+	if (shared && numInstances > 1) {
+		// Do not delete the deployment
+		_, err := s.modelsRepo.DeleteServiceInstance(serviceInstance.Id)
+		if err != nil {
+			handleDBDeleteError(err, w)
+			return
+		}
 		return
+	} else {
+
+		task, err := s.boshClient.DeleteDeployment(serviceInstance.DeploymentName)
+		if err != nil {
+			handleInternalServerError(err, w)
+			return
+		}
+
+		serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
+
+		err = s.modelsRepo.UpdateServiceInstance(*serviceInstance)
+		if err != nil {
+			handleDBSaveError(err, w)
+			return
+		}
+		log.Debug("Saved service instance to DB")
+
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
 	}
-
-	serviceInstance.DeprovisionTaskId = strconv.Itoa(task.Id)
-
-	err = s.modelsRepo.UpdateServiceInstance(*serviceInstance)
-	if err != nil {
-		handleDBSaveError(err, w)
-		return
-	}
-	log.Debug("Saved service instance to DB")
-
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(fmt.Sprintf(asyncResponse, task.Id)))
 }
 
 func (s *slHandler) LastOperation(w http.ResponseWriter, r *http.Request) {
@@ -452,22 +500,90 @@ func (s *slHandler) isProvisionComplete(serviceInstance *models.ServiceInstance)
 }
 
 func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.ResponseWriter) bool {
+
+	var isValid bool
+
 	if serviceId != rest_models.DefaultServiceId {
 		log.Errorf("Invalid service id:%s specified", serviceId)
 		handleBadRequest("Invalid Service Id", w)
 		return false
 	}
-	if planId != rest_models.PermissionlessPlanId && planId != rest_models.PermissionedPlanId {
-		log.Errorf("Invalid plan id:%s specified", planId)
-		handleBadRequest("Invalid Plan Id", w)
-		return false
+
+	switch planId {
+		case rest_models.PermissionlessPlanId, rest_models.PermissionedPlanId, rest_models.SharedPermissionedPlanId, rest_models.SharedPermissionlessPlanId:
+			log.Info("ServiceId and PlanId Valid. Returning true.")
+			isValid = true
+		default:
+			log.Info("Invalid plan id:%s specified", planId)
+			handleBadRequest("Invalid Plan Id", w)
+			isValid = false
 	}
-	return true
+
+
+	log.Info("Function returning %d here. ", isValid)
+	return isValid
+}
+
+func (s *slHandler) numInstancesInDeployment(deploymentName string) int {
+
+	serviceInstanceList, err := s.modelsRepo.ListServiceInstances()
+	if err != nil {
+		log.Error("Unable to fetch service instances from db", err)
+		return 0
+	}
+
+	i := 0
+	for _, serviceInstance := range serviceInstanceList {
+		if serviceInstance.DeploymentName == deploymentName {
+			i++
+		}
+	}
+
+	return i
+}
+
+func (s *slHandler) deploymentExists(deploymentName string) (bool, *models.ServiceInstance) {
+	serviceInstanceList, err := s.modelsRepo.ListServiceInstances()
+	if err != nil {
+		log.Error("Unable to fetch service instances from db", err)
+		return false, nil
+	}
+
+	for _, serviceInstance := range serviceInstanceList {
+		if serviceInstance.DeploymentName == deploymentName {
+			return true, &serviceInstance
+		}
+	}
+
+	return false, nil
+}
+
+func (s *slHandler) getDeploymentName(shared bool, permissioned bool, instanceId string) (string) {
+	var deploymentName string
+
+	if (shared && permissioned) {
+		deploymentName = sharedPermissionedPlanName
+	} else if (shared && !permissioned) {
+		deploymentName = sharedPermissionlessPlanName
+	} else {
+		deploymentName = fmt.Sprintf("fabric-%s", instanceId)
+	}
+
+	return deploymentName
+}
+
+func (s *slHandler) isShared(planId string) bool {
+	if planId == rest_models.SharedPermissionedPlanId || planId == rest_models.SharedPermissionlessPlanId {
+		return true
+	}
+
+	return false
 }
 
 func (s *slHandler) isPermissioned(planId string) bool {
 	if planId == rest_models.PermissionedPlanId {
 		return true
 	}
+
 	return false
 }

@@ -1,9 +1,11 @@
 package rest_models
 
 const (
-	DefaultServiceId     = "05FC7A18-5B52-4701-A475-5995B79DF2AD"
-	PermissionlessPlanId = "15175506-D9F6-4CD8-AA1E-8F0AAFB99C07"
-	PermissionedPlanId   = "4D64F255-927B-4807-A358-15CF06EC687B"
+	DefaultServiceId                   = "05FC7A18-5B52-4701-A475-5995B79DF2AD"
+	PermissionlessPlanId               = "15175506-D9F6-4CD8-AA1E-8F0AAFB99C07"
+	PermissionedPlanId                 = "4D64F255-927B-4807-A358-15CF06EC687B"
+	SharedPermissionedPlanId           = "7C1C3178-7551-11E6-8B77-86F30CA893D3"
+	SharedPermissionlessPlanId         = "27083A54-76ED-11E6-8B77-86F30CA893D3"
 )
 
 type ServiceCatalog struct {
@@ -79,6 +81,30 @@ func GetDefaultService() Service {
 					Name:        "permissioned",
 					DisplayName: "Free plan",
 					Description: "Dedicated 4 nodes permissioned block chain cluster",
+					Costs:       []string{"free"},
+				},
+			},
+			Plan{
+				Id:          SharedPermissionedPlanId,
+				Name:        "shared",
+				Description: "Shared 4 node permissioned block chain cluster, all members reuse the one-time commissioned block chain.",
+				Free:        true,
+				MetaData: PlanMetaData{
+					Name:        "shared",
+					DisplayName: "Free plan",
+					Description: "shared 4 nodes permissioned block chain cluster",
+					Costs:       []string{"free"},
+				},
+			},
+			Plan{
+				Id:          SharedPermissionlessPlanId,
+				Name:        "shared",
+				Description: "Shared 4 node permissionless block chain cluster, all members reuse the one-time commissioned block chain.",
+				Free:        true,
+				MetaData: PlanMetaData{
+					Name:        "shared",
+					DisplayName: "Free plan",
+					Description: "shared 4 nodes permissionless block chain cluster",
 					Costs:       []string{"free"},
 				},
 			},

@@ -93,3 +93,17 @@ func handleInstanceAlreadyBound(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte(sberrors.ErrBindingsExist))
 }
+
+func handleProvisioningError(w http.ResponseWriter, deploymentName string, planId string) {
+	log.Infof("Provisioning request made for dedicated plan :%s and pre-existing deployment :%s", 
+			  planId, deploymentName)
+	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte(sberrors.ErrBindingsExist))
+}
+
+func handleDeprovisioningError(w http.ResponseWriter, deploymentName string, planId string, numInstances int) {
+	log.Infof("Derovisioning request made with %d bound instances in shared plan :%s deployment :%s", 
+			  numInstances, planId, deploymentName)
+	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte(sberrors.ErrBindingsExist))
+}
