@@ -111,8 +111,8 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceProvisionRequest.ServiceId, serviceProvisionRequest.PlanId, w) {
-		log.Info("ServiceId or PlanId invalid. Returning without provisioning.")
-		handleBadRequest(err.Error(), w)
+		log.Error("ServiceId or PlanId invalid. Returning without provisioning.")
+		handleBadRequest("ServiceId or PlanId invalid.", w)
 		return
 	}
 
@@ -137,7 +137,7 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	deploymentExists, existingInstance := s.deploymentExists(deploymentName)
 
 	// Deployment does not exist, create one
-	if (!deploymentExists) {
+	if !deploymentExists {
 		log.Info("Deployment does not exist. Creating one.")
 		// Get the first available network
 		for netName, _ := range s.availableNetworks {
@@ -252,7 +252,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 
 	shared := s.isShared(serviceInstance.PlanId)
 
-	if (shared) {
+	if shared {
 		var numInstances = s.numInstancesInDeployment(serviceInstance.DeploymentName)
 
 		if (numInstances > 1) {
@@ -263,6 +263,7 @@ func (s *slHandler) Deprovision(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("{}"))
 			return
 		}
 	}
@@ -359,8 +360,8 @@ func (s *slHandler) Bind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceBindingRequest.ServiceId, serviceBindingRequest.PlanId, w) {
-		log.Info("ServiceId or PlanId invalid. Returning without provisioning.")
-		handleBadRequest(err.Error(), w)
+		log.Error("ServiceId or PlanId invalid. Returning without provisioning.")
+		handleBadRequest("ServiceId or PlanId invalid.", w)
 		return
 	}
 
