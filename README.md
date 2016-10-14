@@ -1,6 +1,24 @@
 # Fabric service broker
 This repo is for service broker used to provision/deprovision hyperledger fabric block chain.
 
+## Service broker plans
+Currently service broker deploys a block-chain as a two level hierarchy :
+1. A deployment connected to a service instance forms the first level of this hierarchy
+2. A service instance connected to a service binding forms the second level of this hierarchy.
+
+Currently service broker offers two kinds of service instance deployment plans :
+1. Shared
+2. Dedicated
+
+In the case of a shared plan, a deployment can be connected to N service instances each of which in turn can be connected to M service bindings each.
+In the case of a dedicated plan, a deployment can be connected to only one service instance and this service instance in-turn can be associated with M service bindings.
+
+These two plans, shared and dedicated can be deployed in two flavours each :
+1. Permissionless
+2. Permissioned.
+
+A permissionless block-chain is one which any entity can join. A permissioned block-chain is one in which only authorized entities can join. So in all, we can have four different deployment models : Shared (permissionless and permissioned) models, Dedicated (permissionless and permissioned) models.
+
 ## Running service broker
 1. Install and start [Bosh lite](https://github.com/cloudfoundry/bosh-lite)
 1. Build and upload [fabric bosh release](https://github.com/atulkc/fabric-release)
