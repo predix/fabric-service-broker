@@ -111,8 +111,8 @@ func (s *slHandler) Provision(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.isValidServiceIdAndPlanId(serviceProvisionRequest.ServiceId, serviceProvisionRequest.PlanId, w) {
-		log.Error("ServiceId or PlanId invalid. Returning without provisioning.")
-		handleBadRequest("ServiceId or PlanId invalid.", w)
+		log.Error(" ServiceId or PlanId invalid. Returning without provisioning.")
+		handleBadRequest(" ServiceId or PlanId invalid.", w)
 		return
 	}
 
@@ -510,7 +510,6 @@ func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.R
 
 	if serviceId != rest_models.DefaultServiceId {
 		log.Errorf("Invalid service id:%s specified", serviceId)
-		handleBadRequest("Invalid Service Id", w)
 		return false
 	}
 
@@ -518,7 +517,7 @@ func (s *slHandler) isValidServiceIdAndPlanId(serviceId, planId string, w http.R
 		case rest_models.PermissionlessPlanId, rest_models.PermissionedPlanId, rest_models.SharedPermissionedPlanId, rest_models.SharedPermissionlessPlanId:
 			isValid = true
 		default:
-			handleBadRequest("Invalid Plan Id", w)
+			log.Errorf("Invalid plan id:%s specified", planId)
 			isValid = false
 	}
 
