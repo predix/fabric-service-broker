@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/atulkc/fabric-service-broker/rest_models"
 	"github.com/op/go-logging"
+	"github.com/predix/fabric-service-broker/rest_models"
 )
 
 var log = logging.MustGetLogger("handler")

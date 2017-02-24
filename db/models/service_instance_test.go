@@ -3,7 +3,7 @@ package models_test
 import (
 	"testing"
 
-	dbmodels "github.com/atulkc/fabric-service-broker/db/models"
+	dbmodels "github.com/predix/fabric-service-broker/db/models"
 
 	. "gopkg.in/go-playground/assert.v1"
 )

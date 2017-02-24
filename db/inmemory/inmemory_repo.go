@@ -1,8 +1,8 @@
 package inmemory
 
 import (
-	"github.com/atulkc/fabric-service-broker/db/models"
 	"github.com/op/go-logging"
+	"github.com/predix/fabric-service-broker/db/models"
 )
 
 type inMemoryDb struct {

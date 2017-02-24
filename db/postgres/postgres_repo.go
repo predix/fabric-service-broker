@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/atulkc/fabric-service-broker/db/models"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/op/go-logging"
+	"github.com/predix/fabric-service-broker/db/models"
 )
 
 var log = logging.MustGetLogger("postgres")

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	sberrors "github.com/atulkc/fabric-service-broker/errors"
 	"github.com/op/go-logging"
+	sberrors "github.com/predix/fabric-service-broker/errors"
 )
 
 var log = logging.MustGetLogger("bosh")

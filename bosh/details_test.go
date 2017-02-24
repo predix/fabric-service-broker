@@ -3,7 +3,7 @@ package bosh_test
 import (
 	"testing"
 
-	"github.com/atulkc/fabric-service-broker/bosh"
+	"github.com/predix/fabric-service-broker/bosh"
 
 	. "gopkg.in/go-playground/assert.v1"
 )

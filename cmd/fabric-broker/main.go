@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/atulkc/fabric-service-broker/bosh"
-	"github.com/atulkc/fabric-service-broker/db"
-	"github.com/atulkc/fabric-service-broker/db/inmemory"
-	"github.com/atulkc/fabric-service-broker/db/postgres"
-	"github.com/atulkc/fabric-service-broker/handlers"
 	"github.com/cloudfoundry-community/go-cfenv"
 	"github.com/gorilla/mux"
 	"github.com/op/go-logging"
+	"github.com/predix/fabric-service-broker/bosh"
+	"github.com/predix/fabric-service-broker/db"
+	"github.com/predix/fabric-service-broker/db/inmemory"
+	"github.com/predix/fabric-service-broker/db/postgres"
+	"github.com/predix/fabric-service-broker/handlers"
 
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )

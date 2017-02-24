@@ -3,8 +3,8 @@ package rest_models_test
 import (
 	"testing"
 
-	"github.com/atulkc/fabric-service-broker/bosh"
-	"github.com/atulkc/fabric-service-broker/rest_models"
+	"github.com/predix/fabric-service-broker/bosh"
+	"github.com/predix/fabric-service-broker/rest_models"
 
 	. "gopkg.in/go-playground/assert.v1"
 )

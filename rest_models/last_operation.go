@@ -1,6 +1,6 @@
 package rest_models
 
-import "github.com/atulkc/fabric-service-broker/bosh"
+import "github.com/predix/fabric-service-broker/bosh"
 
 const (
 	StateInProgress = "in progress"

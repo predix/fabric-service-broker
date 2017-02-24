@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/atulkc/fabric-service-broker/bosh"
-	"github.com/atulkc/fabric-service-broker/db"
-	"github.com/atulkc/fabric-service-broker/db/models"
-	sberrors "github.com/atulkc/fabric-service-broker/errors"
-	"github.com/atulkc/fabric-service-broker/rest_models"
 	"github.com/gorilla/mux"
+	"github.com/predix/fabric-service-broker/bosh"
+	"github.com/predix/fabric-service-broker/db"
+	"github.com/predix/fabric-service-broker/db/models"
+	sberrors "github.com/predix/fabric-service-broker/errors"
+	"github.com/predix/fabric-service-broker/rest_models"
 )
 
 type ServiceLifecycleHandler interface {

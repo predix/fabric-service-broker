@@ -3,17 +3,17 @@ This repo is for service broker used to provision/deprovision hyperledger fabric
 
 ## Running service broker
 1. Install and start [Bosh lite](https://github.com/cloudfoundry/bosh-lite)
-1. Build and upload [fabric bosh release](https://github.com/atulkc/fabric-release)
-1. Update the cloud config on bosh director as described [here](https://github.com/atulkc/fabric-release)
+1. Build and upload [fabric bosh release](https://github.com/predix/fabric-release)
+1. Update the cloud config on bosh director as described [here](https://github.com/predix/fabric-release)
 1. Fetch the repo
 	```
-	go get github.com/atulkc/fabric-service-broker
+	go get github.com/predix/fabric-service-broker
 	```
 	This will fetch the source under `$GOPATH/src` directory.
 1. Execute following command to run the service broker
 
 	```
-	cd $GOPATH/src/github.com/atulkc/fabric-service-broker
+	cd $GOPATH/src/github.com/predix/fabric-service-broker
 	go run cmd/fabric-broker/main.go --boshStemcellName bosh-warden-boshlite-ubuntu-trusty-go_agent --boshDirectorUuid $(bosh status --uuid) --boshVmType small --boshNetworks "peer, peer1,peer2, peer3" --peerDataDir "/var/vcap/data/hyperledger/production" --dockerDataDir "/var/vcap/data/docker"
 	```
 

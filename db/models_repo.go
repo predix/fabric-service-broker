@@ -1,6 +1,6 @@
 package db
 
-import dbmodels "github.com/atulkc/fabric-service-broker/db/models"
+import dbmodels "github.com/predix/fabric-service-broker/db/models"
 
 type ModelsRepo interface {
 	CreateServiceInstance(serviceInstance dbmodels.ServiceInstance) error

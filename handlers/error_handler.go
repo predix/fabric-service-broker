@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	sberrors "github.com/atulkc/fabric-service-broker/errors"
+	sberrors "github.com/predix/fabric-service-broker/errors"
 )
 
 func handleDBReadError(err error, w http.ResponseWriter) {
